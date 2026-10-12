@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>THE FINE PRINT</title>
+<style>
+  :root { --ink:#10131B; --panel:#1A1F2C; --line:#2B3245; --text:#EDF0F7; --dim:#8E97AC;
+    --gold:#FFC64B; --mint:#4FE3A8; --red:#FF6B6B; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--ink); color:var(--text); font:14px/1.5 system-ui, sans-serif; width:400px; }
+  main { padding:14px 16px 18px; }
+  h1 { font-size:0.8rem; letter-spacing:0.22em; color:var(--gold); }
+  .sub { color:var(--dim); font-size:0.78rem; margin:2px 0 12px; }
+  button.go { background:var(--gold); border:0; border-radius:10px; color:#221800; cursor:pointer;
+    font:inherit; font-weight:700; padding:10px 0; width:100%; }
+  button.go:disabled { opacity:0.5; }
+  .status { color:var(--dim); font-size:0.82rem; margin-top:10px; }
+  .err { color:var(--red); font-size:0.84rem; margin-top:10px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    margin-top:10px; padding:10px 12px; }
+  .k { color:var(--dim); font-size:0.64rem; letter-spacing:0.16em; margin-bottom:4px; }
+  .deal { font-size:0.95rem; font-weight:600; }
+  .ai-yes { color:var(--red); font-weight:700; }
+  .ai-no { color:var(--mint); font-weight:700; }
+  .ai-unclear { color:var(--gold); font-weight:700; }
+  ul { margin:2px 0 0 16px; padding:0; }
+  li { font-size:0.85rem; margin-bottom:3px; }
+  blockquote { border-left:2px solid var(--line); color:var(--dim); font-size:0.78rem;
+    font-style:italic; margin:4px 0 6px; padding:1px 0 1px 8px; }
+  .flag b { color:var(--red); font-size:0.85rem; }
+  .meter { color:var(--dim); font-size:0.7rem; margin-top:10px; text-align:right; }
+  .gate input { background:var(--ink); border:1px solid var(--line); border-radius:8px;
+    color:var(--text); font:inherit; padding:8px 10px; width:100%; }
+  .gate p { color:var(--dim); font-size:0.78rem; margin-bottom:6px; }
+  .foot { color:var(--dim); font-size:0.68rem; margin-top:12px; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>THE FINE PRINT</h1>
+  <p class="sub">The machine reads the terms. The judgment stays with you.</p>
+
+  <div id="gate" class="gate" hidden>
+    <p>Crew code (ask Mr. Turner):</p>
+    <input id="code" type="password" placeholder="code">
+  </div>
+
+  <button class="go" id="read">READ THIS PAGE'S TERMS</button>
+  <p class="status" id="status" hidden></p>
+  <p class="err" id="err" hidden></p>
+
+  <div id="out" hidden>
+    <section><p class="k">THE DEAL</p><p class="deal" id="deal"></p></section>
+    <section><p class="k">DOES YOUR DATA TRAIN AI?</p><p id="ai"></p><blockquote id="ai-q" hidden></blockquote></section>
+    <section><p class="k">WHAT THEY TAKE</p><ul id="take"></ul></section>
+    <section><p class="k">WHO GETS IT</p><ul id="share"></ul></section>
+    <section id="flags-box"><p class="k">RED FLAGS</p><div id="flags"></div></section>
+    <section><p class="k">CAN YOU LEAVE?</p><p id="leave" style="font-size:0.85rem"></p></section>
+    <p class="status" id="conf" hidden></p>
+    <p class="meter" id="meter"></p>
+  </div>
+
+  <p class="foot">This extension collects nothing. It reads a page only when you press the button.</p>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
