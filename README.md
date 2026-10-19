@@ -1,5 +1,5 @@
 # THE FINE PRINT
-
+Hellar
 *The machine reads the fine print. The judgment stays with you.*
 
 A Chrome extension that reads the terms-of-service or privacy policy you're looking at and
