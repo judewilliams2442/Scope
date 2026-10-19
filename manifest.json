@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "THE FINE PRINT",
+  "name": "Scope",
   "version": "0.1.0",
-  "description": "Read the terms before you agree. The machine reads the fine print - the judgment stays with you.",
+  "description": "Understand what a website's privacy policy says about your data.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["https://harness-ascte.netlify.app/*"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "THE FINE PRINT - read this page's terms"
+    "default_title": "Scope - privacy policy analysis"
   },
   "icons": {
-    "16": "icons/16.png",
-    "48": "icons/48.png",
-    "128": "icons/128.png"
+    "16": "16.png",
+    "48": "48.png",
+    "128": "128.png"
   }
 }

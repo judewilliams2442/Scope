@@ -2,65 +2,189 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>THE FINE PRINT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope — Privacy Policy Analysis</title>
 <style>
-  :root { --ink:#10131B; --panel:#1A1F2C; --line:#2B3245; --text:#EDF0F7; --dim:#8E97AC;
-    --gold:#FFC64B; --mint:#4FE3A8; --red:#FF6B6B; }
-  * { box-sizing:border-box; margin:0; }
-  body { background:var(--ink); color:var(--text); font:14px/1.5 system-ui, sans-serif; width:400px; }
-  main { padding:14px 16px 18px; }
-  h1 { font-size:0.8rem; letter-spacing:0.22em; color:var(--gold); }
-  .sub { color:var(--dim); font-size:0.78rem; margin:2px 0 12px; }
-  button.go { background:var(--gold); border:0; border-radius:10px; color:#221800; cursor:pointer;
-    font:inherit; font-weight:700; padding:10px 0; width:100%; }
-  button.go:disabled { opacity:0.5; }
-  .status { color:var(--dim); font-size:0.82rem; margin-top:10px; }
-  .err { color:var(--red); font-size:0.84rem; margin-top:10px; }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    margin-top:10px; padding:10px 12px; }
-  .k { color:var(--dim); font-size:0.64rem; letter-spacing:0.16em; margin-bottom:4px; }
-  .deal { font-size:0.95rem; font-weight:600; }
-  .ai-yes { color:var(--red); font-weight:700; }
-  .ai-no { color:var(--mint); font-weight:700; }
-  .ai-unclear { color:var(--gold); font-weight:700; }
-  ul { margin:2px 0 0 16px; padding:0; }
-  li { font-size:0.85rem; margin-bottom:3px; }
-  blockquote { border-left:2px solid var(--line); color:var(--dim); font-size:0.78rem;
-    font-style:italic; margin:4px 0 6px; padding:1px 0 1px 8px; }
-  .flag b { color:var(--red); font-size:0.85rem; }
-  .meter { color:var(--dim); font-size:0.7rem; margin-top:10px; text-align:right; }
-  .gate input { background:var(--ink); border:1px solid var(--line); border-radius:8px;
-    color:var(--text); font:inherit; padding:8px 10px; width:100%; }
-  .gate p { color:var(--dim); font-size:0.78rem; margin-bottom:6px; }
-  .foot { color:var(--dim); font-size:0.68rem; margin-top:12px; text-align:center; }
+  :root {
+    color-scheme: light;
+    --green: #21865B;
+    --green-dark: #14543D;
+    --green-soft: #E8F4EE;
+    --blue-soft: #DCEFFD;
+    --blue: #24688C;
+    --background: #F5F8F6;
+    --surface: #FFFFFF;
+    --text: #1D2924;
+    --muted: #68776F;
+    --border: #DCE5DF;
+    --amber: #8B5C08;
+    --amber-soft: #FFF4D8;
+    --red: #A83D36;
+    --focus: #176B9A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-width: 320px; }
+  body {
+    width: min(420px, 100vw);
+    max-height: 680px;
+    overflow-y: auto;
+    background: var(--background);
+    color: var(--text);
+    font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { padding: 18px 20px 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand-mark {
+    display: grid; width: 30px; height: 30px; place-items: center;
+    border-radius: 8px; background: var(--green); color: white;
+    font-size: 15px; font-weight: 750;
+  }
+  h1 { margin: 0; font-size: 17px; letter-spacing: -0.035em; }
+  .context { color: var(--muted); font-size: 11px; }
+  .lede { margin: 12px 0 14px; color: var(--muted); font-size: 12px; }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .go {
+    width: 100%; min-height: 42px; padding: 9px 14px;
+    border: 1px solid var(--green); border-radius: 7px;
+    background: var(--green); color: white; font-weight: 680;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .go:hover:not(:disabled) { background: var(--green-dark); border-color: var(--green-dark); }
+  .go:disabled { cursor: wait; opacity: .65; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .gate { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+  .gate label { display: block; margin-bottom: 6px; font-weight: 650; }
+  .gate input {
+    width: 100%; padding: 8px 9px; border: 1px solid var(--border);
+    border-radius: 5px; background: var(--surface); color: var(--text);
+  }
+  .status, .error { margin: 10px 0 0; font-size: 12px; }
+  .status { color: var(--muted); }
+  .error { color: var(--red); }
+  details { margin-top: 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  summary {
+    padding: 10px 1px; color: var(--green-dark); cursor: pointer;
+    font-size: 12px; font-weight: 680; list-style-position: inside;
+  }
+  .preferences-intro { margin: 0 0 7px 17px; color: var(--muted); font-size: 11px; }
+  .preference-list { display: grid; gap: 1px; padding-bottom: 6px; }
+  .preference {
+    display: flex; align-items: flex-start; gap: 9px; padding: 7px 4px;
+    border-radius: 5px; cursor: pointer;
+  }
+  .preference:hover { background: #EDF4F0; }
+  .preference input { flex: 0 0 auto; width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--green); }
+  .preference-copy { display: grid; gap: 1px; }
+  .preference-copy strong { font-size: 11px; font-weight: 650; }
+  .preference-copy small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+  .preference-status { min-height: 15px; margin: 0 0 7px 17px; color: var(--muted); font-size: 10px; }
+  #out { margin-top: 18px; }
+  .result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+  .result-head h2 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
+  .result-label { color: var(--muted); font-size: 10px; }
+  .result-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .result-section:last-of-type { border-bottom: 0; }
+  .section-label {
+    margin: 0 0 6px; color: var(--muted); font-size: 10px;
+    font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  }
+  .summary { margin: 0; font-size: 13px; font-weight: 570; line-height: 1.55; }
+  .finding { padding: 9px 0; }
+  .finding + .finding { border-top: 1px solid var(--border); }
+  .finding-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .finding h3 { margin: 0 0 4px; font-size: 12px; line-height: 1.4; }
+  .category { flex: 0 0 auto; padding: 2px 6px; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-size: 9px; }
+  .finding-copy { margin: 4px 0 0; color: #34443C; font-size: 11px; line-height: 1.5; }
+  .status-tag, .priority-match { display: inline-block; margin: 2px 4px 0 0; padding: 2px 6px; border-radius: 4px; background: var(--green-soft); color: var(--green-dark); font-size: 9px; font-weight: 650; }
+  .status-tag.severity-review { background: var(--amber-soft); color: var(--amber); }
+  .status-tag.severity-high, .status-tag.severity-critical { background: #FCE8E5; color: var(--red); }
+  .priority-match { background: var(--blue-soft); color: var(--blue); }
+  .evidence { margin: 7px 0 1px; padding: 2px 0 2px 9px; border-left: 2px solid #8ABADA; color: var(--muted); font-size: 10px; font-style: italic; }
+  .answer { margin: 0; font-size: 12px; font-weight: 650; }
+  .answer.positive { color: var(--green-dark); }
+  .answer.concern { color: var(--amber); }
+  .answer.neutral { color: var(--muted); }
+  ul { margin: 5px 0 0; padding-left: 17px; }
+  li { margin: 3px 0; font-size: 11px; }
+  .confidence { margin: 10px 0 0; padding: 8px 10px; border-radius: 5px; background: var(--blue-soft); color: #304F62; font-size: 10px; }
+  .meter { margin: 8px 0 0; color: var(--muted); font-size: 10px; text-align: right; }
+  .foot { margin: 14px 0 0; color: var(--muted); font-size: 10px; text-align: center; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1>THE FINE PRINT</h1>
-  <p class="sub">The machine reads the terms. The judgment stays with you.</p>
+  <header>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <h1>Scope</h1>
+    </div>
+    <span class="context">Privacy policy analysis</span>
+  </header>
+  <p class="lede">Understand what a policy says about your data before you agree.</p>
 
+  <button class="go" id="read" type="button">Analyze this page</button>
   <div id="gate" class="gate" hidden>
-    <p>Crew code (ask Mr. Turner):</p>
-    <input id="code" type="password" placeholder="code">
+    <label for="code">Crew code</label>
+    <input id="code" type="password" placeholder="Ask Mr. Turner" autocomplete="off">
   </div>
+  <p class="status" id="status" role="status" aria-live="polite" hidden></p>
+  <p class="error" id="err" role="alert" hidden></p>
 
-  <button class="go" id="read">READ THIS PAGE'S TERMS</button>
-  <p class="status" id="status" hidden></p>
-  <p class="err" id="err" hidden></p>
+  <details id="priority-details">
+    <summary>Analysis priorities</summary>
+    <p class="preferences-intro">Choose topics to emphasize. Scope can still report other important findings.</p>
+    <div class="preference-list" id="preferences"></div>
+    <p class="preference-status" id="preference-status" aria-live="polite"></p>
+  </details>
 
   <div id="out" hidden>
-    <section><p class="k">THE DEAL</p><p class="deal" id="deal"></p></section>
-    <section><p class="k">DOES YOUR DATA TRAIN AI?</p><p id="ai"></p><blockquote id="ai-q" hidden></blockquote></section>
-    <section><p class="k">WHAT THEY TAKE</p><ul id="take"></ul></section>
-    <section><p class="k">WHO GETS IT</p><ul id="share"></ul></section>
-    <section id="flags-box"><p class="k">RED FLAGS</p><div id="flags"></div></section>
-    <section><p class="k">CAN YOU LEAVE?</p><p id="leave" style="font-size:0.85rem"></p></section>
-    <p class="status" id="conf" hidden></p>
+    <div class="result-head">
+      <h2>Policy analysis</h2>
+      <span class="result-label">Based on the open page</span>
+    </div>
+    <section class="result-section">
+      <h3 class="section-label">Privacy overview</h3>
+      <p class="summary" id="summary"></p>
+    </section>
+    <section class="result-section" id="findings-section" hidden>
+      <h3 class="section-label">Key findings</h3>
+      <div id="findings"></div>
+    </section>
+    <section class="result-section" id="legacy-section" hidden>
+      <section class="result-section" id="legacy-take-section" hidden>
+        <h3 class="section-label">Data collected</h3>
+        <ul id="legacy-take"></ul>
+      </section>
+      <section class="result-section" id="legacy-share-section" hidden>
+        <h3 class="section-label">Who receives the data</h3>
+        <ul id="legacy-share"></ul>
+      </section>
+      <section class="result-section" id="legacy-ai-section" hidden>
+        <h3 class="section-label">AI training</h3>
+        <div id="legacy-ai"></div>
+        <div id="legacy-ai-evidence"></div>
+      </section>
+      <section class="result-section" id="legacy-flags-section" hidden>
+        <h3 class="section-label">Potential concerns</h3>
+        <div id="legacy-flags"></div>
+      </section>
+      <section class="result-section" id="legacy-leave-section" hidden>
+        <h3 class="section-label">Retention and deletion</h3>
+        <p class="finding-copy" id="legacy-leave"></p>
+      </section>
+    </section>
+    <section class="result-section" id="unknowns-section" hidden>
+      <h3 class="section-label">Not established by the available text</h3>
+      <div id="unknowns"></div>
+    </section>
+    <p class="confidence" id="confidence" hidden></p>
     <p class="meter" id="meter"></p>
   </div>
 
-  <p class="foot">This extension collects nothing. It reads a page only when you press the button.</p>
+  <p class="foot">Page text is sent to the analysis service only when you start an analysis.</p>
 </main>
 <script src="popup.js"></script>
 </body>
