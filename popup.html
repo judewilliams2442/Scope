@@ -36,9 +36,9 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .brand { display: flex; align-items: center; gap: 9px; }
   .brand-mark {
-    display: grid; width: 30px; height: 30px; place-items: center;
-    border-radius: 8px; background: var(--green); color: white;
-    font-size: 15px; font-weight: 750;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
   h1 { margin: 0; font-size: 17px; letter-spacing: -0.035em; }
   .context { color: var(--muted); font-size: 11px; }
@@ -118,7 +118,7 @@
 <main>
   <header>
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">S</span>
+      <img class="brand-mark" aria-hidden="true" src="Scope_Logo.png" alt="Scope">
       <h1>Scope</h1>
     </div>
     <span class="context">Privacy policy analysis</span>
