@@ -1,6 +1,6 @@
 # Scope
 *Understand the policy. Decide what works for you.*
-
+#BiG$LIMAMEMBER
 A Chrome extension that analyzes the privacy policy open in your browser and presents the
 available findings in plain language, with supporting policy excerpts where available.
 
