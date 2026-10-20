@@ -1,6 +1,11 @@
 # Scope
 *Understand the policy. Decide what works for you.*
+<<<<<<< HEAD
 #BiG$LIMAMEMBER
+=======
+#goon
+
+>>>>>>> 7d2ff1847d071ea83281e9ac52dc0207151c3955
 A Chrome extension that analyzes the privacy policy open in your browser and presents the
 available findings in plain language, with supporting policy excerpts where available.
 
