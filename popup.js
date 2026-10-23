@@ -2,6 +2,18 @@ const LANE = "https://harness-ascte.netlify.app/api/fineprint";
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");
 const PREFERENCE_KEY = "scope-preferences";
+const ALERT_THRESHOLD_KEY = "scope-alert-threshold";
+const DEFAULT_ALERT_THRESHOLD = "medium";
+const ALERT_SEVERITY_ORDER = {
+  informational: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+let currentAlertThreshold = DEFAULT_ALERT_THRESHOLD;
+let alertThresholdChanged = false;
+let lastResult = null;
 
 const PREFERENCES = [
   {
@@ -44,25 +56,50 @@ const PREFERENCES = [
 const DEFAULT_PREFERENCES = PREFERENCES.map(({ key }) => key);
 
 const DEMO_ANALYSIS = {
-  deal: "The policy describes collecting account and device information, sharing some data with service providers, and using activity for advertising.",
-  ai_training: {
-    answer: "unclear",
-    quote: "",
-  },
-  they_take: [
-    "Account details and contact information",
-    "Device identifiers and usage activity",
-  ],
-  who_gets_it: ["Service providers", "Advertising partners"],
-  red_flags: [
+  summary: "This sample policy collects location data, shares information with partners, and keeps some account data after deletion.",
+  findings: [
     {
-      flag: "The policy allows sharing information with advertising partners.",
-      quote: "We may share information with our advertising partners to provide relevant advertisements.",
+      title: "Approximate location is collected",
+      explanation: "The policy says it collects approximate location information.",
+      category: "location_tracking",
+      severity: "low",
+      status: "explicitly_stated",
+      evidence: [{ quote: "We collect your approximate location to provide local features." }],
+      user_preference_match: true,
+    },
+    {
+      title: "Data may be shared with advertising partners",
+      explanation: "The policy allows sharing some information with advertising partners.",
+      category: "third_party_sharing",
+      severity: "medium",
+      status: "explicitly_stated",
+      evidence: [{ quote: "We may share information with our advertising partners to provide relevant advertisements." }],
+      user_preference_match: true,
+    },
+    {
+      title: "Activity may be used for targeted advertising",
+      explanation: "Browsing activity may be used to personalize ads across services.",
+      category: "targeted_advertising",
+      severity: "high",
+      status: "explicitly_stated",
+      evidence: [{ quote: "We use your activity across our services to personalize advertisements." }],
+      user_preference_match: true,
+    },
+    {
+      title: "Backups may remain after account deletion",
+      explanation: "The policy does not give a clear timeframe for removing backup copies.",
+      category: "retention_deletion",
+      severity: "critical",
+      status: "not_specified",
+      evidence: [{ quote: "We retain account information for as long as needed to provide our services." }],
+      user_preference_match: true,
     },
   ],
-  leaveability: "You may request account deletion. The policy does not specify how long backups are retained.",
   confidence_note: "This sample is for display only and does not describe the current page.",
 };
+const DEMO_SOURCE_TEXT = DEMO_ANALYSIS.findings
+  .flatMap(({ evidence }) => evidence.map(({ quote }) => quote))
+  .join(" ");
 
 const CATEGORY_LABELS = {
   location_tracking: "Location",
@@ -118,6 +155,38 @@ async function savePreferences(preferences) {
     localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
   } catch (error) {
     throw new Error("Could not save your analysis priorities.");
+  }
+}
+
+async function loadAlertThreshold() {
+  if (globalThis.chrome?.storage?.local) {
+    const result = await chrome.storage.local.get(ALERT_THRESHOLD_KEY);
+    const stored = result[ALERT_THRESHOLD_KEY];
+    return Object.hasOwn(ALERT_SEVERITY_ORDER, stored)
+      ? stored
+      : DEFAULT_ALERT_THRESHOLD;
+  }
+
+  try {
+    const stored = localStorage.getItem(ALERT_THRESHOLD_KEY);
+    return stored && Object.hasOwn(ALERT_SEVERITY_ORDER, stored)
+      ? stored
+      : DEFAULT_ALERT_THRESHOLD;
+  } catch (error) {
+    throw new Error("Could not load your alert threshold.");
+  }
+}
+
+async function saveAlertThreshold(threshold) {
+  if (globalThis.chrome?.storage?.local) {
+    await chrome.storage.local.set({ [ALERT_THRESHOLD_KEY]: threshold });
+    return;
+  }
+
+  try {
+    localStorage.setItem(ALERT_THRESHOLD_KEY, threshold);
+  } catch (error) {
+    throw new Error("Could not save your alert threshold.");
   }
 }
 
@@ -286,7 +355,7 @@ function renderStructured(analysis, sourceText) {
   if (Array.isArray(analysis.findings)) {
     for (const finding of analysis.findings) {
       const item = renderFinding(finding, sourceText);
-      if (item) rendered.push(item);
+      if (item && meetsAlertThreshold(finding)) rendered.push(item);
     }
   }
   $("findings").replaceChildren(...rendered);
@@ -310,6 +379,16 @@ function renderStructured(analysis, sourceText) {
   $("legacy-section").hidden = true;
 }
 
+function meetsAlertThreshold(finding) {
+  const severity = isRecord(finding) ? finding.severity : null;
+  if (typeof severity !== "string" ||
+      !Object.hasOwn(ALERT_SEVERITY_ORDER, severity)) {
+    return true;
+  }
+  return ALERT_SEVERITY_ORDER[severity] >=
+    ALERT_SEVERITY_ORDER[currentAlertThreshold];
+}
+
 function stringList(values) {
   return Array.isArray(values)
     ? values.filter((value) => typeof value === "string" && value.trim())
@@ -324,6 +403,7 @@ function renderLegacy(analysis, sourceText) {
         isRecord(flag) &&
         typeof flag.flag === "string" &&
         typeof flag.quote === "string" &&
+        meetsAlertThreshold(flag) &&
         sourceText.includes(flag.quote)
       )
     : [];
@@ -389,6 +469,8 @@ function render(analysis, usage, sourceText) {
     return;
   }
 
+  lastResult = { analysis, usage, sourceText };
+
   const summary = typeof analysis.summary === "string"
     ? analysis.summary.trim()
     : typeof analysis.deal === "string" ? analysis.deal.trim() : "";
@@ -437,6 +519,47 @@ function initialize() {
     .then(renderPreferences)
     .catch((error) => show("err", error.message));
 
+  loadAlertThreshold()
+    .then((threshold) => {
+      if (alertThresholdChanged) return;
+      currentAlertThreshold = threshold;
+      $("alert-threshold").value = threshold;
+      if (lastResult) {
+        render(lastResult.analysis, lastResult.usage, lastResult.sourceText);
+      }
+    })
+    .catch((error) => show("err", error.message));
+
+  $("settings-toggle").addEventListener("click", () => {
+    const panel = $("settings-panel");
+    panel.hidden = !panel.hidden;
+    $("settings-toggle").setAttribute("aria-expanded", String(!panel.hidden));
+  });
+
+  $("alert-threshold").addEventListener("change", async (event) => {
+    const previous = currentAlertThreshold;
+    const threshold = event.target.value;
+    alertThresholdChanged = true;
+    if (!Object.hasOwn(ALERT_SEVERITY_ORDER, threshold)) {
+      alertThresholdChanged = false;
+      event.target.value = previous;
+      return;
+    }
+
+    currentAlertThreshold = threshold;
+    try {
+      await saveAlertThreshold(threshold);
+      $("threshold-status").textContent = "Alert threshold saved on this device.";
+      if (lastResult) {
+        render(lastResult.analysis, lastResult.usage, lastResult.sourceText);
+      }
+    } catch (error) {
+      currentAlertThreshold = previous;
+      event.target.value = previous;
+      show("err", error.message);
+    }
+  });
+
   $("code")?.addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && event.target.value.trim()) {
       try {
@@ -453,9 +576,7 @@ function initialize() {
   $("read").addEventListener("click", async () => {
     hideAll();
     if (DEMO) {
-      render(DEMO_ANALYSIS, { tokens: 12345, costCents: 1.4 },
-        DEMO_ANALYSIS.ai_training.quote + " " +
-        DEMO_ANALYSIS.red_flags.map(({ quote }) => quote).join(" "));
+      render(DEMO_ANALYSIS, { tokens: 12345, costCents: 1.4 }, DEMO_SOURCE_TEXT);
       return;
     }
 

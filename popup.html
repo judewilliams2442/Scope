@@ -43,7 +43,7 @@
   h1 { margin: 0; font-size: 17px; letter-spacing: -0.035em; }
   .context { color: var(--muted); font-size: 11px; }
   .lede { margin: 12px 0 14px; color: var(--muted); font-size: 12px; }
-  button, input { font: inherit; }
+  button, input, select { font: inherit; }
   button { cursor: pointer; }
   .go {
     width: 100%; min-height: 42px; padding: 9px 14px;
@@ -54,6 +54,25 @@
   .go:hover:not(:disabled) { background: var(--green-dark); border-color: var(--green-dark); }
   .go:disabled { cursor: wait; opacity: .65; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .settings-toggle {
+    width: 100%; min-height: 36px; margin: 12px 0 0; padding: 7px 10px;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: var(--surface); color: var(--green-dark); font-weight: 650;
+    text-align: left;
+  }
+  .settings-panel {
+    margin-top: 8px; padding: 12px;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: var(--surface);
+  }
+  .settings-panel h2 { margin: 0 0 8px; font-size: 14px; }
+  .settings-group { margin: 0 0 12px; }
+  .settings-group label { display: block; margin-bottom: 5px; font-weight: 650; }
+  .settings-group select {
+    width: 100%; padding: 7px 8px; border: 1px solid var(--border);
+    border-radius: 5px; background: var(--surface); color: var(--text);
+  }
+  .settings-help { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
   .gate { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
   .gate label { display: block; margin-bottom: 6px; font-weight: 650; }
   .gate input {
@@ -63,12 +82,7 @@
   .status, .error { margin: 10px 0 0; font-size: 12px; }
   .status { color: var(--muted); }
   .error { color: var(--red); }
-  details { margin-top: 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  summary {
-    padding: 10px 1px; color: var(--green-dark); cursor: pointer;
-    font-size: 12px; font-weight: 680; list-style-position: inside;
-  }
-  .preferences-intro { margin: 0 0 7px 17px; color: var(--muted); font-size: 11px; }
+  .preferences-intro { margin: 0 0 7px; color: var(--muted); font-size: 11px; }
   .preference-list { display: grid; gap: 1px; padding-bottom: 6px; }
   .preference {
     display: flex; align-items: flex-start; gap: 9px; padding: 7px 4px;
@@ -125,6 +139,32 @@
   </header>
   <p class="lede">Understand what a policy says about your data before you agree.</p>
 
+  <button
+    class="settings-toggle"
+    id="settings-toggle"
+    type="button"
+    aria-expanded="false"
+    aria-controls="settings-panel"
+  >Settings</button>
+  <section id="settings-panel" class="settings-panel" aria-labelledby="settings-heading" hidden>
+    <h2 id="settings-heading">Analysis settings</h2>
+    <div class="settings-group">
+      <label for="alert-threshold">Minimum finding severity</label>
+      <select id="alert-threshold">
+        <option value="informational">Informational and above</option>
+        <option value="low">Low and above</option>
+        <option value="medium">Medium and above</option>
+        <option value="high">High and above</option>
+        <option value="critical">Critical only</option>
+      </select>
+      <p class="settings-help">Filters rated findings in the results; it does not send browser notifications. Findings without a severity rating remain visible.</p>
+    </div>
+    <p class="preferences-intro">Choose topics to emphasize in your analysis. Other important findings may still appear.</p>
+    <div class="preference-list" id="preferences"></div>
+    <p class="preference-status" id="preference-status" aria-live="polite"></p>
+    <p class="preference-status" id="threshold-status" aria-live="polite"></p>
+  </section>
+
   <button class="go" id="read" type="button">Analyze this page</button>
   <div id="gate" class="gate" hidden>
     <label for="code">Crew code</label>
@@ -132,13 +172,6 @@
   </div>
   <p class="status" id="status" role="status" aria-live="polite" hidden></p>
   <p class="error" id="err" role="alert" hidden></p>
-
-  <details id="priority-details">
-    <summary>Analysis priorities</summary>
-    <p class="preferences-intro">Choose topics to emphasize. Scope can still report other important findings.</p>
-    <div class="preference-list" id="preferences"></div>
-    <p class="preference-status" id="preference-status" aria-live="polite"></p>
-  </details>
 
   <div id="out" hidden>
     <div class="result-head">
