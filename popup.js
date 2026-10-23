@@ -229,6 +229,14 @@ function renderPreferences(selected) {
 }
 
 async function getCode() {
+  const entered = $("code").value.trim();
+  if (entered) {
+    const code = entered.toUpperCase();
+    await chrome.storage.local.set({ "fp-code": code });
+    $("gate").hidden = true;
+    return code;
+  }
+
   const result = await chrome.storage.local.get("fp-code");
   const stored = result["fp-code"];
 
