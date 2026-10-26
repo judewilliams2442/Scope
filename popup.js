@@ -5,43 +5,48 @@ const PREFERENCE_KEY = "scope-preferences";
 
 const PREFERENCES = [
   {
-    key: "location_tracking",
-    label: "Location",
-    description: "Collection of precise or approximate location data.",
+    key: "locationTracking",
+    category: "location_tracking",
+    label: "Location tracking",
+    description: "Location data, GPS, geolocation, and location-based monitoring.",
   },
   {
-    key: "ai_training",
-    label: "AI training",
-    description: "Use of personal data to train or improve AI models.",
+    key: "aiDataTraining",
+    category: "ai_training",
+    label: "AI data training",
+    description: "Using user data to train or improve AI or machine-learning models.",
   },
   {
-    key: "third_party_sharing",
-    label: "Sharing or selling",
-    description: "Sharing or sale of data to third parties.",
+    key: "piiCollection",
+    category: "pii_collection",
+    label: "Personal information collection",
+    description: "Collecting identifying details such as names, email, phone, or IP addresses.",
   },
   {
-    key: "targeted_advertising",
-    label: "Advertising and tracking",
-    description: "Targeted ads or tracking across websites and services.",
+    key: "thirdPartySharing",
+    category: "third_party_sharing",
+    label: "Third-party sharing",
+    description: "Sharing, selling, or disclosing data to external entities.",
   },
   {
-    key: "sensitive_information",
-    label: "Sensitive information",
-    description: "Collection of sensitive personal information.",
+    key: "targetedAdvertising",
+    category: "targeted_advertising",
+    label: "Targeted advertising",
+    description: "Personalized ads, advertising profiles, and ad-network tracking.",
   },
   {
-    key: "retention_deletion",
+    key: "retentionDeletion",
+    category: "retention_deletion",
     label: "Retention and deletion",
-    description: "How long data is kept and how it can be deleted.",
-  },
-  {
-    key: "excessive_collection",
-    label: "Excessive collection",
-    description: "Collection of personal information that may not be needed.",
+    description: "How long data is kept, deletion policies, and removal requests.",
   },
 ];
 
-const DEFAULT_PREFERENCES = PREFERENCES.map(({ key }) => key);
+const DEFAULT_PREFERENCES = Object.fromEntries(
+  PREFERENCES.map(({ key }) => [key, true])
+);
+let currentPreferences = { ...DEFAULT_PREFERENCES };
+let preferenceWrites = Promise.resolve();
 
 const DEMO_ANALYSIS = {
   deal: "The policy describes collecting account and device information, sharing some data with service providers, and using activity for advertising.",
@@ -65,17 +70,21 @@ const DEMO_ANALYSIS = {
 };
 
 const CATEGORY_LABELS = {
-  location_tracking: "Location",
-  ai_training: "AI training",
-  third_party_sharing: "Sharing or selling",
-  targeted_advertising: "Advertising and tracking",
-  sensitive_information: "Sensitive information",
+  location_tracking: "Location tracking",
+  location: "Location tracking",
+  geolocation: "Location tracking",
+  ai_training: "AI data training",
+  ai_data_training: "AI data training",
+  pii_collection: "Personal information collection",
+  pii: "Personal information collection",
+  personal_information: "Personal information collection",
+  sensitive_information: "Personal information collection",
+  third_party_sharing: "Third-party sharing",
+  data_sharing: "Third-party sharing",
+  targeted_advertising: "Targeted advertising",
+  advertising: "Targeted advertising",
   retention_deletion: "Retention and deletion",
-  excessive_collection: "Data collection",
-  data_collected: "Data collected",
-  data_use: "How data is used",
-  data_sharing: "Who receives the data",
-  other: "Other finding",
+  retention: "Retention and deletion",
 };
 
 function isRecord(value) {
@@ -83,28 +92,64 @@ function isRecord(value) {
 }
 
 function normalizedPreferences(value) {
-  const selected = new Set(
-    Array.isArray(value) ? value.filter((item) => typeof item === "string") : []
+  if (Array.isArray(value)) {
+    const selected = new Set(value.filter((item) => typeof item === "string"));
+    return {
+      locationTracking: selected.has("location_tracking"),
+      aiDataTraining: selected.has("ai_training"),
+      piiCollection: selected.has("sensitive_information") ||
+        selected.has("excessive_collection"),
+      thirdPartySharing: selected.has("third_party_sharing"),
+      targetedAdvertising: selected.has("targeted_advertising"),
+      retentionDeletion: selected.has("retention_deletion"),
+    };
+  }
+
+  return Object.fromEntries(
+    PREFERENCES.map(({ key }) => [
+      key,
+      isRecord(value) && typeof value[key] === "boolean"
+        ? value[key]
+        : true,
+    ])
   );
-  return PREFERENCES.filter(({ key }) => selected.has(key)).map(({ key }) => key);
 }
 
 async function loadPreferences() {
   if (globalThis.chrome?.storage?.local) {
     const result = await chrome.storage.local.get(PREFERENCE_KEY);
-    if (Array.isArray(result[PREFERENCE_KEY])) {
-      return normalizedPreferences(result[PREFERENCE_KEY]);
+    const stored = result[PREFERENCE_KEY];
+    const preferences = normalizedPreferences(stored);
+    const isCurrentObject = isRecord(stored) &&
+      PREFERENCES.every(({ key }) => typeof stored[key] === "boolean");
+    if (!isCurrentObject) {
+      await chrome.storage.local.set({ [PREFERENCE_KEY]: preferences });
     }
-    return [...DEFAULT_PREFERENCES];
+    return preferences;
   }
 
   try {
-    const stored = localStorage.getItem(PREFERENCE_KEY);
-    return stored === null
-      ? [...DEFAULT_PREFERENCES]
-      : normalizedPreferences(JSON.parse(stored));
+    const serialized = localStorage.getItem(PREFERENCE_KEY);
+    const stored = serialized === null ? undefined : JSON.parse(serialized);
+    const preferences = serialized === null
+      ? { ...DEFAULT_PREFERENCES }
+      : normalizedPreferences(stored);
+    if (serialized === null || !isRecord(stored) ||
+        !PREFERENCES.every(({ key }) =>
+          typeof stored[key] === "boolean")) {
+      localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
+    }
+    return preferences;
   } catch (error) {
-    throw new Error("Could not load your saved analysis priorities.");
+    if (error instanceof SyntaxError) {
+      try {
+        localStorage.setItem(PREFERENCE_KEY, JSON.stringify(DEFAULT_PREFERENCES));
+        return { ...DEFAULT_PREFERENCES };
+      } catch {
+        throw new Error("Could not initialize your summary preferences.");
+      }
+    }
+    throw new Error("Could not load your saved summary preferences.");
   }
 }
 
@@ -117,11 +162,11 @@ async function savePreferences(preferences) {
   try {
     localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
   } catch (error) {
-    throw new Error("Could not save your analysis priorities.");
+    throw new Error("Could not save your summary preferences.");
   }
 }
 
-function renderPreferences(selected) {
+function renderPreferences(preferences) {
   const container = $("preferences");
   container.replaceChildren(
     ...PREFERENCES.map(({ key, label, description }) => {
@@ -130,19 +175,33 @@ function renderPreferences(selected) {
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
-      checkbox.name = "priority";
+      checkbox.name = "preference";
       checkbox.value = key;
-      checkbox.checked = selected.includes(key);
-      checkbox.setAttribute("aria-label", label);
+      checkbox.checked = preferences[key];
+      checkbox.setAttribute("aria-label", `${label}: include in summary`);
       checkbox.addEventListener("change", async () => {
-        const next = [...container.querySelectorAll('input[name="priority"]:checked')]
-          .map((input) => input.value);
+        const previous = { ...currentPreferences };
+        currentPreferences = { ...currentPreferences, [key]: checkbox.checked };
+        container.querySelectorAll('input[name="preference"]').forEach((input) => {
+          input.disabled = true;
+        });
+        const write = preferenceWrites.then(() =>
+          savePreferences(currentPreferences)
+        );
+        preferenceWrites = write.catch(() => {});
         try {
-          await savePreferences(next);
-          $("preference-status").textContent = "Priorities saved on this device.";
+          await write;
+          $("preference-status").textContent = "Summary preferences saved on this device.";
         } catch (error) {
-          checkbox.checked = !checkbox.checked;
-          show("err", error.message);
+          currentPreferences = previous;
+          renderPreferences(currentPreferences);
+          show("err", error instanceof Error
+            ? error.message
+            : "Could not save your summary preferences.");
+        } finally {
+          container.querySelectorAll('input[name="preference"]').forEach((input) => {
+            input.disabled = false;
+          });
         }
       });
 
@@ -157,6 +216,38 @@ function renderPreferences(selected) {
       return row;
     })
   );
+}
+
+function enabledPreferences(preferences) {
+  return PREFERENCES.filter(({ key }) => preferences[key]);
+}
+
+function preferenceForCategory(category) {
+  const keyByCategory = {
+    location_tracking: "locationTracking",
+    location: "locationTracking",
+    geolocation: "locationTracking",
+    ai_training: "aiDataTraining",
+    ai_data_training: "aiDataTraining",
+    pii_collection: "piiCollection",
+    pii: "piiCollection",
+    personal_information: "piiCollection",
+    sensitive_information: "piiCollection",
+    third_party_sharing: "thirdPartySharing",
+    data_sharing: "thirdPartySharing",
+    targeted_advertising: "targetedAdvertising",
+    advertising: "targetedAdvertising",
+    retention_deletion: "retentionDeletion",
+    retention: "retentionDeletion",
+  };
+  return typeof category === "string" ? keyByCategory[category] : undefined;
+}
+
+function filterByPreferences(items, preferences) {
+  return items.filter((item) => {
+    const preference = preferenceForCategory(item?.category);
+    return preference && preferences[preference];
+  });
 }
 
 async function getCode() {
@@ -276,38 +367,50 @@ function renderFinding(finding, sourceText) {
   }
 
   if (finding.user_preference_match === true) {
-    article.append(textElement("span", "priority-match", "Matches your priorities"));
+    article.append(textElement("span", "priority-match", "Matches your preferences"));
   }
   return article;
 }
 
-function renderStructured(analysis, sourceText) {
+function renderStructured(analysis, sourceText, preferences) {
+  const findings = filterByPreferences(
+    Array.isArray(analysis.findings) ? analysis.findings : [],
+    preferences
+  );
   const rendered = [];
-  if (Array.isArray(analysis.findings)) {
-    for (const finding of analysis.findings) {
-      const item = renderFinding(finding, sourceText);
-      if (item) rendered.push(item);
-    }
+  for (const finding of findings) {
+    const item = renderFinding(finding, sourceText);
+    if (item) rendered.push(item);
   }
   $("findings").replaceChildren(...rendered);
   $("findings-section").hidden = rendered.length === 0;
 
   const unknowns = [];
-  if (Array.isArray(analysis.unknowns)) {
-    for (const unknown of analysis.unknowns) {
-      if (!isRecord(unknown) || typeof unknown.explanation !== "string") continue;
-      const item = document.createElement("article");
-      item.className = "finding";
-      item.append(
-        textElement("h3", "", CATEGORY_LABELS[unknown.category] ?? "Not established"),
-        textElement("p", "finding-copy", unknown.explanation)
-      );
-      unknowns.push(item);
-    }
+  const filteredUnknowns = filterByPreferences(
+    Array.isArray(analysis.unknowns) ? analysis.unknowns : [],
+    preferences
+  );
+  for (const unknown of filteredUnknowns) {
+    if (!isRecord(unknown) || typeof unknown.explanation !== "string") continue;
+    const item = document.createElement("article");
+    item.className = "finding";
+    item.append(
+      textElement("h3", "", CATEGORY_LABELS[unknown.category] ?? "Not established"),
+      textElement("p", "finding-copy", unknown.explanation)
+    );
+    unknowns.push(item);
   }
   $("unknowns").replaceChildren(...unknowns);
   $("unknowns-section").hidden = unknowns.length === 0;
   $("legacy-section").hidden = true;
+  return [
+    ...findings
+      .filter((finding) => typeof finding?.explanation === "string")
+      .map((finding) => finding.explanation.trim()),
+    ...filteredUnknowns
+      .filter((unknown) => typeof unknown?.explanation === "string")
+      .map((unknown) => unknown.explanation.trim()),
+  ].filter(Boolean);
 }
 
 function stringList(values) {
@@ -316,15 +419,17 @@ function stringList(values) {
     : [];
 }
 
-function renderLegacy(analysis, sourceText) {
-  const take = stringList(analysis.they_take);
-  const share = stringList(analysis.who_gets_it);
+function renderLegacy(analysis, sourceText, preferences) {
+  const take = preferences.piiCollection ? stringList(analysis.they_take) : [];
+  const share = preferences.thirdPartySharing ? stringList(analysis.who_gets_it) : [];
   const flags = Array.isArray(analysis.red_flags)
     ? analysis.red_flags.filter((flag) =>
         isRecord(flag) &&
         typeof flag.flag === "string" &&
         typeof flag.quote === "string" &&
-        sourceText.includes(flag.quote)
+        sourceText.includes(flag.quote) &&
+        preferenceForCategory(flag.category) !== undefined &&
+        preferences[preferenceForCategory(flag.category)]
       )
     : [];
 
@@ -333,14 +438,18 @@ function renderLegacy(analysis, sourceText) {
   $("legacy-take-section").hidden = take.length === 0;
   $("legacy-share-section").hidden = share.length === 0;
 
-  const ai = isRecord(analysis.ai_training) ? analysis.ai_training : {};
+  const ai = preferences.aiDataTraining && isRecord(analysis.ai_training)
+    ? analysis.ai_training
+    : {};
   const aiAnswers = {
     yes: ["Policy says data may be used for AI training.", "concern"],
     no: ["Policy says data is not used for AI training.", "positive"],
     unclear: ["The available text does not establish whether data is used for AI training.", "neutral"],
   };
   const aiSection = $("legacy-ai-section");
-  let aiResult = aiAnswers[ai.answer];
+  let aiResult = Object.hasOwn(aiAnswers, ai.answer)
+    ? aiAnswers[ai.answer]
+    : null;
   if ((ai.answer === "yes" || ai.answer === "no") &&
       (typeof ai.quote !== "string" || !sourceText.includes(ai.quote))) {
     aiResult = null;
@@ -368,7 +477,8 @@ function renderLegacy(analysis, sourceText) {
   );
   $("legacy-flags-section").hidden = flags.length === 0;
 
-  const leaveability = typeof analysis.leaveability === "string"
+  const leaveability = preferences.retentionDeletion &&
+      typeof analysis.leaveability === "string"
     ? analysis.leaveability.trim()
     : "";
   $("legacy-leave").textContent = leaveability;
@@ -377,9 +487,16 @@ function renderLegacy(analysis, sourceText) {
     take.length + share.length + flags.length === 0 && !leaveability;
   $("findings-section").hidden = true;
   $("unknowns-section").hidden = true;
+  return [
+    ...take.map((item) => `Personal information: ${item}`),
+    ...share.map((item) => `Third-party sharing: ${item}`),
+    ...(aiResult ? [`AI data training: ${aiResult[0]}`] : []),
+    ...flags.map((flag) => flag.flag),
+    ...(leaveability ? [`Retention and deletion: ${leaveability}`] : []),
+  ];
 }
 
-function render(analysis, usage, sourceText) {
+function render(analysis, usage, sourceText, preferences) {
   if (!isRecord(analysis)) {
     throw new Error("The analysis response was incomplete. Please try again.");
   }
@@ -389,26 +506,32 @@ function render(analysis, usage, sourceText) {
     return;
   }
 
-  const summary = typeof analysis.summary === "string"
-    ? analysis.summary.trim()
-    : typeof analysis.deal === "string" ? analysis.deal.trim() : "";
-  if (!summary && !Array.isArray(analysis.findings) &&
-      !Array.isArray(analysis.they_take) && !Array.isArray(analysis.who_gets_it)) {
+  if (!Array.isArray(analysis.findings) &&
+      !Array.isArray(analysis.unknowns) &&
+      !Array.isArray(analysis.they_take) &&
+      !Array.isArray(analysis.who_gets_it) &&
+      !Array.isArray(analysis.red_flags) &&
+      !isRecord(analysis.ai_training) &&
+      typeof analysis.leaveability !== "string") {
     throw new Error("The analysis response did not contain usable findings. Please try again.");
   }
-  $("summary").textContent = summary || "The policy analysis did not return an overview.";
 
+  const summaryItems = [];
   if (Array.isArray(analysis.findings) || Array.isArray(analysis.unknowns)) {
-    renderStructured(analysis, sourceText);
+    summaryItems.push(...renderStructured(analysis, sourceText, preferences));
   } else {
-    renderLegacy(analysis, sourceText);
+    summaryItems.push(...renderLegacy(analysis, sourceText, preferences));
   }
+  $("summary").textContent = summaryItems.length
+    ? summaryItems.join(" ")
+    : "The service returned no findings for your enabled summary categories.";
 
   const confidence = typeof analysis.confidence_note === "string"
     ? analysis.confidence_note.trim()
     : "";
-  $("confidence").textContent = confidence;
-  $("confidence").hidden = !confidence;
+  const canShowUncategorizedText = enabledPreferences(preferences).length === PREFERENCES.length;
+  $("confidence").textContent = canShowUncategorizedText ? confidence : "";
+  $("confidence").hidden = !canShowUncategorizedText || !confidence;
 
   const tokens = Number(usage?.tokens);
   const costCents = Number(usage?.costCents);
@@ -431,11 +554,17 @@ function hideAll() {
   $("out").hidden = true;
 }
 
-function initialize() {
-  renderPreferences([...DEFAULT_PREFERENCES]);
-  loadPreferences()
-    .then(renderPreferences)
-    .catch((error) => show("err", error.message));
+function showNoEnabledPreferences() {
+  $("summary-preferences").open = true;
+  show(
+    "status",
+    "No summary categories are enabled. Open Summary Preferences above and turn on at least one topic."
+  );
+}
+
+async function initialize() {
+  currentPreferences = await loadPreferences();
+  renderPreferences(currentPreferences);
 
   $("code")?.addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && event.target.value.trim()) {
@@ -452,22 +581,43 @@ function initialize() {
 
   $("read").addEventListener("click", async () => {
     hideAll();
-    if (DEMO) {
-      render(DEMO_ANALYSIS, { tokens: 12345, costCents: 1.4 },
-        DEMO_ANALYSIS.ai_training.quote + " " +
-        DEMO_ANALYSIS.red_flags.map(({ quote }) => quote).join(" "));
-      return;
-    }
-
     $("read").disabled = true;
     try {
+      await preferenceWrites;
+      currentPreferences = await loadPreferences();
+      renderPreferences(currentPreferences);
+      if (!enabledPreferences(currentPreferences).length) {
+        showNoEnabledPreferences();
+        return;
+      }
+
+      if (DEMO) {
+        render(
+          DEMO_ANALYSIS,
+          { tokens: 12345, costCents: 1.4 },
+          DEMO_ANALYSIS.ai_training.quote + " " +
+            DEMO_ANALYSIS.red_flags.map(({ quote }) => quote).join(" "),
+          currentPreferences
+        );
+        return;
+      }
+
       const code = await getCode();
       if (!code) return;
 
       show("status", "Reading the open page…");
       const { url, text } = await pageText();
+      await preferenceWrites;
+      currentPreferences = await loadPreferences();
+      renderPreferences(currentPreferences);
+      if (!enabledPreferences(currentPreferences).length) {
+        showNoEnabledPreferences();
+        return;
+      }
+
+      const enabled = enabledPreferences(currentPreferences);
+      const disabled = PREFERENCES.filter(({ key }) => !currentPreferences[key]);
       show("status", "Analyzing the policy…");
-      const preferences = await loadPreferences();
       const response = await fetch(LANE, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -476,7 +626,15 @@ function initialize() {
           device: "crew",
           url,
           text,
-          priorities: preferences,
+          priorities: enabled.map(({ category }) => category),
+          enabledCategories: enabled.map(({ category, label }) => ({ category, label })),
+          summaryInstructions: [
+            `Discuss only these enabled privacy categories: ${enabled.map(({ label }) => label).join(", ")}.`,
+            `Do not discuss these disabled categories: ${disabled.map(({ label }) => label).join(", ") || "none"}.`,
+            "Exclude disabled topics even when they appear in the policy; never imply that excluded practices do not occur.",
+            "Be accurate, do not invent policy details, and mark enabled categories not addressed by the policy as unclear or not specified.",
+            "Return findings with a category key so the extension can filter them.",
+          ].join(" "),
         }),
       });
 
@@ -501,7 +659,7 @@ function initialize() {
       }
 
       $("status").hidden = true;
-      render(data?.analysis, data?.usage, text);
+      render(data?.analysis, data?.usage, text, currentPreferences);
     } catch (error) {
       $("status").hidden = true;
       show("err", error instanceof Error
@@ -513,4 +671,8 @@ function initialize() {
   });
 }
 
-initialize();
+initialize().catch((error) => {
+  show("err", error instanceof Error
+    ? error.message
+    : "Could not load your saved summary preferences.");
+});

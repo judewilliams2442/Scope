@@ -21,27 +21,56 @@ canned analysis. The preview is illustrative and does not analyze the current pa
 - `popup.js` grabs the open page's visible text **only when you press the button** (`activeTab`);
   it does not inspect pages in the background. That text is sent to the analysis gateway.
 - The text goes to the school's AI gateway: `POST https://harness-ascte.netlify.app/api/fineprint`
-  with `{code, device, url, text, priorities}`. The gateway returns JSON in the existing
-  analysis format. The popup accepts the legacy response and a structured `summary`,
-  `findings`, and `unknowns` format.
+  with `{code, device, url, text, priorities, enabledCategories, summaryInstructions}`.
+  The popup accepts the legacy response and a structured `summary`, `findings`, and
+  `unknowns` format.
 - The popup checks displayed evidence excerpts against the extracted page text. The gateway
   should also verify quotations and ground claims before returning analysis.
 - Budget is real: ~1¢ per read, 40 reads per device per day, $5/month for the whole crew,
   and **every request is logged and readable by Mr. Turner.** The meter in the popup shows
   what each read cost. Spending a read is itself a judgment call.
 
-### Analysis priorities
+### Summary preferences
 
-Open **Analysis priorities** to select topics. Selections are saved locally using
-`chrome.storage.local` and are included in each request as a list of category keys in
-`priorities`. The general analysis is still requested regardless of selections.
+Open **Summary Preferences** to independently include or exclude location tracking, AI data
+training, personal information collection, third-party sharing, targeted advertising, and
+retention/deletion. All six are on for new users. Choices are stored as booleans in
+`chrome.storage.local`; missing fields default to on while existing fields are preserved. The
+popup also migrates the earlier saved priority list.
 
-The AI gateway and its prompt are hosted outside this repository, so they cannot be updated
-here. For the priorities to affect model output, the gateway must accept `priorities`, treat
-the policy text as untrusted input, and use the selections to emphasize relevant findings.
-Until that gateway change is deployed, the controls save and send preferences but the current
-remote service may ignore them. The popup preserves the current response contract and checks
-structured fields when present; updating the remote prompt/schema remains a follow-up.
+At the start of an analysis, the popup rereads saved choices and sends enabled category keys,
+labels, and instructions to discuss only enabled topics, avoid claims about excluded topics,
+and avoid inventing details. The UI filters categorized findings and unknowns locally, and
+builds its overview only from those filtered results. Unstructured gateway summaries are not
+displayed because the extension cannot safely remove disabled topics from free text. Legacy
+fields are shown only when their response field maps to an enabled category; unclassified
+legacy findings are omitted. If every category is off, no analysis request is sent.
+
+The gateway and its model prompt are hosted outside this repository. They must honor the
+`enabledCategories` and `summaryInstructions` request fields and return categorized findings
+for full coverage, especially for location and advertising. A remote service that ignores
+these fields may still analyze disabled topics internally; the popup suppresses unclassified
+text but cannot guarantee model-side exclusion without a gateway update. The gateway should
+also continue treating policy text as untrusted input and verifying quotations.
+
+### Preference verification
+
+There is no test framework in this starter extension. To verify the feature manually:
+
+1. Load the unpacked extension, open its popup, and check that all six preferences are on.
+   Change one, close/reopen the popup, and confirm it remains off; reload Chrome and confirm
+   it remains off.
+2. With a policy containing several topics, disable one category and analyze. Confirm tagged
+   structured results for that category disappear while other enabled categories remain.
+   Repeat with multiple disabled categories.
+3. Turn off all six and analyze. Confirm the popup opens Summary Preferences with a clear
+   message and makes no gateway request.
+4. Confirm an enabled but unaddressed category is only described as unclear/not specified when
+   the gateway returns a categorized unknown; the extension does not infer absence.
+5. In DevTools, verify a partial saved preference object retains its boolean values and fills
+   missing values as on. Verify the analysis request contains the latest enabled categories.
+6. For overlapping topics, confirm the gateway returns separately categorized findings;
+   unclassified legacy fields should be omitted rather than risking display of a disabled topic.
 
 ## What's deliberately left for you (the actual capstone)
 
