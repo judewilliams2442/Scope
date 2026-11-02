@@ -20,6 +20,10 @@ canned analysis. The preview is illustrative and does not analyze the current pa
 
 - `popup.js` grabs the open page's visible text **only when you press the button** (`activeTab`);
   it does not inspect pages in the background. That text is sent to the analysis gateway.
+- `settings.js` manages the summary-preference controls and saved choices. `popup.html` loads it
+  before `popup.js`, which uses the `ScopeSettings` API when preparing and filtering analysis.
+- The popup's **Settings** button opens a separate preferences view, with a **Back** button to
+  return to the main page. Analysis results stay hidden until the user presses **Analyze this page**.
 - The text goes to the school's AI gateway: `POST https://harness-ascte.netlify.app/api/fineprint`
   with `{code, device, url, text, priorities, enabledCategories, summaryInstructions}`.
   The popup accepts the legacy response and a structured `summary`, `findings`, and

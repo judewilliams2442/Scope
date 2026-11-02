@@ -56,6 +56,14 @@
   .go:hover:not(:disabled) { background: var(--green-dark); border-color: var(--green-dark); }
   .go:disabled { cursor: wait; opacity: .65; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .settings-open, .back {
+    min-height: 36px; padding: 7px 11px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface); color: var(--green-dark);
+    font-weight: 650;
+  }
+  .settings-open { width: 100%; margin-top: 9px; }
+  .back { margin: 0 0 12px; }
+  .view-heading { margin: 0; font-size: 15px; }
   .gate { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
   .gate label { display: block; margin-bottom: 6px; font-weight: 650; }
   .gate input {
@@ -65,12 +73,7 @@
   .status, .error { margin: 10px 0 0; font-size: 12px; }
   .status { color: var(--muted); }
   .error { color: var(--red); }
-  details { margin-top: 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  summary {
-    padding: 10px 1px; color: var(--green-dark); cursor: pointer;
-    font-size: 12px; font-weight: 680; list-style-position: inside;
-  }
-  .preferences-intro { margin: 0 0 7px 17px; color: var(--muted); font-size: 11px; }
+  .preferences-intro { margin: 8px 0 10px; color: var(--muted); font-size: 11px; }
   .preference-list { display: grid; gap: 1px; padding-bottom: 6px; }
   .preference {
     display: flex; align-items: flex-start; gap: 9px; padding: 7px 4px;
@@ -81,7 +84,7 @@
   .preference-copy { display: grid; gap: 1px; }
   .preference-copy strong { font-size: 11px; font-weight: 650; }
   .preference-copy small { color: var(--muted); font-size: 10px; line-height: 1.35; }
-  .preference-status { min-height: 15px; margin: 0 0 7px 17px; color: var(--muted); font-size: 10px; }
+  .preference-status { min-height: 15px; margin: 7px 0; color: var(--muted); font-size: 10px; }
   #out { margin-top: 18px; }
   .result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
   .result-head h2 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
@@ -127,69 +130,78 @@
       </div>
     </div>
   </header>
-  <p class="lede">Understand what a policy says about your data before you agree.</p>
+  <section id="home-view">
+    <p class="lede">Understand what a policy says about your data before you agree.</p>
 
-  <button class="go" id="read" type="button">Analyze this page</button>
-  <div id="gate" class="gate" hidden>
-    <label for="code">Crew code</label>
-    <input id="code" type="password" placeholder="Ask Mr. Turner" autocomplete="off">
-  </div>
-  <p class="status" id="status" role="status" aria-live="polite" hidden></p>
-  <p class="error" id="err" role="alert" hidden></p>
+    <button class="go" id="read" type="button">Analyze this page</button>
+    <button class="settings-open" id="settings-open" type="button" aria-controls="settings-view">
+      Settings
+    </button>
+    <div id="gate" class="gate" hidden>
+      <label for="code">Crew code</label>
+      <input id="code" type="password" placeholder="Ask Mr. Turner" autocomplete="off">
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite" hidden></p>
+    <p class="error" id="err" role="alert" aria-live="assertive" hidden></p>
 
-  <details id="summary-preferences">
-    <summary>Summary Preferences</summary>
+    <div id="out" hidden>
+      <div class="result-head">
+        <h2>Policy analysis</h2>
+        <span class="result-label">Based on the open page</span>
+      </div>
+      <section class="result-section">
+        <h3 class="section-label">Privacy overview</h3>
+        <p class="summary" id="summary"></p>
+      </section>
+      <section class="result-section" id="findings-section" hidden>
+        <h3 class="section-label">Key findings</h3>
+        <div id="findings"></div>
+      </section>
+      <section class="result-section" id="legacy-section" hidden>
+        <section class="result-section" id="legacy-take-section" hidden>
+          <h3 class="section-label">Data collected</h3>
+          <ul id="legacy-take"></ul>
+        </section>
+        <section class="result-section" id="legacy-share-section" hidden>
+          <h3 class="section-label">Who receives the data</h3>
+          <ul id="legacy-share"></ul>
+        </section>
+        <section class="result-section" id="legacy-ai-section" hidden>
+          <h3 class="section-label">AI training</h3>
+          <div id="legacy-ai"></div>
+          <div id="legacy-ai-evidence"></div>
+        </section>
+        <section class="result-section" id="legacy-flags-section" hidden>
+          <h3 class="section-label">Potential concerns</h3>
+          <div id="legacy-flags"></div>
+        </section>
+        <section class="result-section" id="legacy-leave-section" hidden>
+          <h3 class="section-label">Retention and deletion</h3>
+          <p class="finding-copy" id="legacy-leave"></p>
+        </section>
+      </section>
+      <section class="result-section" id="unknowns-section" hidden>
+        <h3 class="section-label">Not established by the available text</h3>
+        <div id="unknowns"></div>
+      </section>
+      <p class="confidence" id="confidence" hidden></p>
+      <p class="meter" id="meter"></p>
+    </div>
+
+    <p class="foot">Page text is sent to the analysis service only when you start an analysis.</p>
+  </section>
+
+  <section id="settings-view" aria-labelledby="settings-heading" hidden>
+    <h2 class="view-heading" id="settings-heading" tabindex="-1">Summary Preferences</h2>
     <p class="preferences-intro">Choose which topics may appear in summaries. Disabled topics are excluded.</p>
+    <p class="status" id="settings-message" role="status" aria-live="polite" hidden></p>
     <div class="preference-list" id="preferences"></div>
     <p class="preference-status" id="preference-status" aria-live="polite"></p>
-  </details>
-
-  <div id="out" hidden>
-    <div class="result-head">
-      <h2>Policy analysis</h2>
-      <span class="result-label">Based on the open page</span>
-    </div>
-    <section class="result-section">
-      <h3 class="section-label">Privacy overview</h3>
-      <p class="summary" id="summary"></p>
-    </section>
-    <section class="result-section" id="findings-section" hidden>
-      <h3 class="section-label">Key findings</h3>
-      <div id="findings"></div>
-    </section>
-    <section class="result-section" id="legacy-section" hidden>
-      <section class="result-section" id="legacy-take-section" hidden>
-        <h3 class="section-label">Data collected</h3>
-        <ul id="legacy-take"></ul>
-      </section>
-      <section class="result-section" id="legacy-share-section" hidden>
-        <h3 class="section-label">Who receives the data</h3>
-        <ul id="legacy-share"></ul>
-      </section>
-      <section class="result-section" id="legacy-ai-section" hidden>
-        <h3 class="section-label">AI training</h3>
-        <div id="legacy-ai"></div>
-        <div id="legacy-ai-evidence"></div>
-      </section>
-      <section class="result-section" id="legacy-flags-section" hidden>
-        <h3 class="section-label">Potential concerns</h3>
-        <div id="legacy-flags"></div>
-      </section>
-      <section class="result-section" id="legacy-leave-section" hidden>
-        <h3 class="section-label">Retention and deletion</h3>
-        <p class="finding-copy" id="legacy-leave"></p>
-      </section>
-    </section>
-    <section class="result-section" id="unknowns-section" hidden>
-      <h3 class="section-label">Not established by the available text</h3>
-      <div id="unknowns"></div>
-    </section>
-    <p class="confidence" id="confidence" hidden></p>
-    <p class="meter" id="meter"></p>
-  </div>
-
-  <p class="foot">Page text is sent to the analysis service only when you start an analysis.</p>
+    <p class="error" id="settings-error" role="alert" aria-live="assertive" hidden></p>
+    <button class="back" id="settings-back" type="button">← Back</button>
+  </section>
 </main>
+<script src="settings.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
