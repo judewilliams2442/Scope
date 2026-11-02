@@ -35,14 +35,15 @@
   main { padding: 18px 20px 16px; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .brand { display: flex; align-items: center; gap: 9px; }
+  .brand-copy { display: flex; flex-direction: column; align-items: flex-start; }
   .brand-mark {
     width: 25%;
     height: 25%;
     object-fit: contain;
     border-radius: 8px;
   }
-  h1 { margin: 0; font-size: 17px; letter-spacing: -0.035em; }
-  .context { color: var(--muted); font-size: 11px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.035em; }
+  .context { color: var(--muted); font-size: 11px; white-space: nowrap; }
   .lede { margin: 12px 0 14px; color: var(--muted); font-size: 12px; }
   button, input { font: inherit; }
   button { cursor: pointer; }
@@ -120,9 +121,11 @@
   <header>
     <div class="brand">
       <img class="brand-mark" aria-hidden="true" src="Scope_Logo.png" alt="Scope">
-      <h1>Scope</h1>
+      <div class="brand-copy">
+        <h1>Scope</h1>
+        <span class="context">Privacy policy analysis</span>
+      </div>
     </div>
-    <span class="context">Privacy policy analysis</span>
   </header>
   <p class="lede">Understand what a policy says about your data before you agree.</p>
 
