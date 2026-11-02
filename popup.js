@@ -1,52 +1,8 @@
 const LANE = "https://harness-ascte.netlify.app/api/fineprint";
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");
-const PREFERENCE_KEY = "scope-preferences";
-
-const PREFERENCES = [
-  {
-    key: "locationTracking",
-    category: "location_tracking",
-    label: "Location tracking",
-    description: "Location data, GPS, geolocation, and location-based monitoring.",
-  },
-  {
-    key: "aiDataTraining",
-    category: "ai_training",
-    label: "AI data training",
-    description: "Using user data to train or improve AI or machine-learning models.",
-  },
-  {
-    key: "piiCollection",
-    category: "pii_collection",
-    label: "Personal information collection",
-    description: "Collecting identifying details such as names, email, phone, or IP addresses.",
-  },
-  {
-    key: "thirdPartySharing",
-    category: "third_party_sharing",
-    label: "Third-party sharing",
-    description: "Sharing, selling, or disclosing data to external entities.",
-  },
-  {
-    key: "targetedAdvertising",
-    category: "targeted_advertising",
-    label: "Targeted advertising",
-    description: "Personalized ads, advertising profiles, and ad-network tracking.",
-  },
-  {
-    key: "retentionDeletion",
-    category: "retention_deletion",
-    label: "Retention and deletion",
-    description: "How long data is kept, deletion policies, and removal requests.",
-  },
-];
-
-const DEFAULT_PREFERENCES = Object.fromEntries(
-  PREFERENCES.map(({ key }) => [key, true])
-);
-let currentPreferences = { ...DEFAULT_PREFERENCES };
-let preferenceWrites = Promise.resolve();
+const settings = globalThis.ScopeSettings;
+let currentPreferences;
 
 const DEMO_ANALYSIS = {
   deal: "The policy describes collecting account and device information, sharing some data with service providers, and using activity for advertising.",
@@ -89,165 +45,6 @@ const CATEGORY_LABELS = {
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalizedPreferences(value) {
-  if (Array.isArray(value)) {
-    const selected = new Set(value.filter((item) => typeof item === "string"));
-    return {
-      locationTracking: selected.has("location_tracking"),
-      aiDataTraining: selected.has("ai_training"),
-      piiCollection: selected.has("sensitive_information") ||
-        selected.has("excessive_collection"),
-      thirdPartySharing: selected.has("third_party_sharing"),
-      targetedAdvertising: selected.has("targeted_advertising"),
-      retentionDeletion: selected.has("retention_deletion"),
-    };
-  }
-
-  return Object.fromEntries(
-    PREFERENCES.map(({ key }) => [
-      key,
-      isRecord(value) && typeof value[key] === "boolean"
-        ? value[key]
-        : true,
-    ])
-  );
-}
-
-async function loadPreferences() {
-  if (globalThis.chrome?.storage?.local) {
-    const result = await chrome.storage.local.get(PREFERENCE_KEY);
-    const stored = result[PREFERENCE_KEY];
-    const preferences = normalizedPreferences(stored);
-    const isCurrentObject = isRecord(stored) &&
-      PREFERENCES.every(({ key }) => typeof stored[key] === "boolean");
-    if (!isCurrentObject) {
-      await chrome.storage.local.set({ [PREFERENCE_KEY]: preferences });
-    }
-    return preferences;
-  }
-
-  try {
-    const serialized = localStorage.getItem(PREFERENCE_KEY);
-    const stored = serialized === null ? undefined : JSON.parse(serialized);
-    const preferences = serialized === null
-      ? { ...DEFAULT_PREFERENCES }
-      : normalizedPreferences(stored);
-    if (serialized === null || !isRecord(stored) ||
-        !PREFERENCES.every(({ key }) =>
-          typeof stored[key] === "boolean")) {
-      localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
-    }
-    return preferences;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      try {
-        localStorage.setItem(PREFERENCE_KEY, JSON.stringify(DEFAULT_PREFERENCES));
-        return { ...DEFAULT_PREFERENCES };
-      } catch {
-        throw new Error("Could not initialize your summary preferences.");
-      }
-    }
-    throw new Error("Could not load your saved summary preferences.");
-  }
-}
-
-async function savePreferences(preferences) {
-  if (globalThis.chrome?.storage?.local) {
-    await chrome.storage.local.set({ [PREFERENCE_KEY]: preferences });
-    return;
-  }
-
-  try {
-    localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
-  } catch (error) {
-    throw new Error("Could not save your summary preferences.");
-  }
-}
-
-function renderPreferences(preferences) {
-  const container = $("preferences");
-  container.replaceChildren(
-    ...PREFERENCES.map(({ key, label, description }) => {
-      const row = document.createElement("label");
-      row.className = "preference";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.name = "preference";
-      checkbox.value = key;
-      checkbox.checked = preferences[key];
-      checkbox.setAttribute("aria-label", `${label}: include in summary`);
-      checkbox.addEventListener("change", async () => {
-        const previous = { ...currentPreferences };
-        currentPreferences = { ...currentPreferences, [key]: checkbox.checked };
-        container.querySelectorAll('input[name="preference"]').forEach((input) => {
-          input.disabled = true;
-        });
-        const write = preferenceWrites.then(() =>
-          savePreferences(currentPreferences)
-        );
-        preferenceWrites = write.catch(() => {});
-        try {
-          await write;
-          $("preference-status").textContent = "Summary preferences saved on this device.";
-        } catch (error) {
-          currentPreferences = previous;
-          renderPreferences(currentPreferences);
-          show("err", error instanceof Error
-            ? error.message
-            : "Could not save your summary preferences.");
-        } finally {
-          container.querySelectorAll('input[name="preference"]').forEach((input) => {
-            input.disabled = false;
-          });
-        }
-      });
-
-      const copy = document.createElement("span");
-      copy.className = "preference-copy";
-      const title = document.createElement("strong");
-      title.textContent = label;
-      const detail = document.createElement("small");
-      detail.textContent = description;
-      copy.append(title, detail);
-      row.append(checkbox, copy);
-      return row;
-    })
-  );
-}
-
-function enabledPreferences(preferences) {
-  return PREFERENCES.filter(({ key }) => preferences[key]);
-}
-
-function preferenceForCategory(category) {
-  const keyByCategory = {
-    location_tracking: "locationTracking",
-    location: "locationTracking",
-    geolocation: "locationTracking",
-    ai_training: "aiDataTraining",
-    ai_data_training: "aiDataTraining",
-    pii_collection: "piiCollection",
-    pii: "piiCollection",
-    personal_information: "piiCollection",
-    sensitive_information: "piiCollection",
-    third_party_sharing: "thirdPartySharing",
-    data_sharing: "thirdPartySharing",
-    targeted_advertising: "targetedAdvertising",
-    advertising: "targetedAdvertising",
-    retention_deletion: "retentionDeletion",
-    retention: "retentionDeletion",
-  };
-  return typeof category === "string" ? keyByCategory[category] : undefined;
-}
-
-function filterByPreferences(items, preferences) {
-  return items.filter((item) => {
-    const preference = preferenceForCategory(item?.category);
-    return preference && preferences[preference];
-  });
 }
 
 async function getCode() {
@@ -373,7 +170,7 @@ function renderFinding(finding, sourceText) {
 }
 
 function renderStructured(analysis, sourceText, preferences) {
-  const findings = filterByPreferences(
+  const findings = settings.filterByPreferences(
     Array.isArray(analysis.findings) ? analysis.findings : [],
     preferences
   );
@@ -386,7 +183,7 @@ function renderStructured(analysis, sourceText, preferences) {
   $("findings-section").hidden = rendered.length === 0;
 
   const unknowns = [];
-  const filteredUnknowns = filterByPreferences(
+  const filteredUnknowns = settings.filterByPreferences(
     Array.isArray(analysis.unknowns) ? analysis.unknowns : [],
     preferences
   );
@@ -428,8 +225,7 @@ function renderLegacy(analysis, sourceText, preferences) {
         typeof flag.flag === "string" &&
         typeof flag.quote === "string" &&
         sourceText.includes(flag.quote) &&
-        preferenceForCategory(flag.category) !== undefined &&
-        preferences[preferenceForCategory(flag.category)]
+        settings.isCategoryEnabled(flag.category, preferences)
       )
     : [];
 
@@ -529,7 +325,8 @@ function render(analysis, usage, sourceText, preferences) {
   const confidence = typeof analysis.confidence_note === "string"
     ? analysis.confidence_note.trim()
     : "";
-  const canShowUncategorizedText = enabledPreferences(preferences).length === PREFERENCES.length;
+  const canShowUncategorizedText =
+    settings.enabled(preferences).length === settings.count;
   $("confidence").textContent = canShowUncategorizedText ? confidence : "";
   $("confidence").hidden = !canShowUncategorizedText || !confidence;
 
@@ -555,16 +352,35 @@ function hideAll() {
 }
 
 function showNoEnabledPreferences() {
-  $("summary-preferences").open = true;
+  showView("settings");
   show(
-    "status",
-    "No summary categories are enabled. Open Summary Preferences above and turn on at least one topic."
+    "settings-message",
+    "No summary categories are enabled. Turn on at least one topic to analyze a page."
   );
 }
 
+function showView(view) {
+  const isSettings = view === "settings";
+  $("home-view").hidden = isSettings;
+  $("settings-view").hidden = !isSettings;
+  if (isSettings) {
+    $("settings-heading").focus();
+  } else {
+    $("settings-open").focus();
+  }
+}
+
 async function initialize() {
-  currentPreferences = await loadPreferences();
-  renderPreferences(currentPreferences);
+  hideAll();
+  $("settings-open").addEventListener("click", () => {
+    $("settings-error").hidden = true;
+    $("settings-message").hidden = true;
+    showView("settings");
+  });
+  $("settings-back").addEventListener("click", () => showView("home"));
+  currentPreferences = await settings.initialize((message) =>
+    show("settings-error", message)
+  );
 
   $("code")?.addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && event.target.value.trim()) {
@@ -583,10 +399,8 @@ async function initialize() {
     hideAll();
     $("read").disabled = true;
     try {
-      await preferenceWrites;
-      currentPreferences = await loadPreferences();
-      renderPreferences(currentPreferences);
-      if (!enabledPreferences(currentPreferences).length) {
+      currentPreferences = await settings.refresh();
+      if (!settings.enabled(currentPreferences).length) {
         showNoEnabledPreferences();
         return;
       }
@@ -607,16 +421,14 @@ async function initialize() {
 
       show("status", "Reading the open page…");
       const { url, text } = await pageText();
-      await preferenceWrites;
-      currentPreferences = await loadPreferences();
-      renderPreferences(currentPreferences);
-      if (!enabledPreferences(currentPreferences).length) {
+      currentPreferences = await settings.refresh();
+      if (!settings.enabled(currentPreferences).length) {
         showNoEnabledPreferences();
         return;
       }
 
-      const enabled = enabledPreferences(currentPreferences);
-      const disabled = PREFERENCES.filter(({ key }) => !currentPreferences[key]);
+      const enabled = settings.enabled(currentPreferences);
+      const disabled = settings.disabled(currentPreferences);
       show("status", "Analyzing the policy…");
       const response = await fetch(LANE, {
         method: "POST",
