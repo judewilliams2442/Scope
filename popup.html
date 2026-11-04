@@ -5,21 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scope — Privacy Policy Analysis</title>
 <style>
+  @font-face {
+    font-family: "Spectral";
+    src: url("fonts/spectral-regular.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
   :root {
     color-scheme: light;
-    --green: #21865B;
-    --green-dark: #14543D;
-    --green-soft: #E8F4EE;
-    --blue-soft: #DCEFFD;
-    --blue: #24688C;
-    --background: #F5F8F6;
-    --surface: #FFFFFF;
-    --text: #1D2924;
-    --muted: #68776F;
-    --border: #DCE5DF;
-    --amber: #8B5C08;
-    --amber-soft: #FFF4D8;
-    --red: #A83D36;
+    --green: #386C4E;
+    --green-dark: #294D39;
+    --green-soft: #E7EBDD;
+    --blue-soft: #E2E9E8;
+    --blue: #35677A;
+    --background: #F3EAD7;
+    --surface: #FBF6E9;
+    --text: #302B22;
+    --muted: #756C5D;
+    --border: #D8CBAF;
+    --amber: #835B17;
+    --amber-soft: #F5EBCF;
+    --red: #9B463B;
     --focus: #176B9A;
   }
   * { box-sizing: border-box; }
@@ -28,11 +35,19 @@
     width: min(420px, 100vw);
     max-height: 680px;
     overflow-y: auto;
-    background: var(--background);
+    background-color: var(--background);
+    background-image:
+      radial-gradient(ellipse at 16% 12%, rgba(255, 255, 255, .62), transparent 48%),
+      radial-gradient(ellipse at 88% 82%, rgba(153, 113, 55, .1), transparent 45%),
+      repeating-linear-gradient(0deg, rgba(105, 78, 40, .035) 0, rgba(105, 78, 40, .035) 1px, transparent 1px, transparent 4px);
     color: var(--text);
-    font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 13px/1.5 "Spectral", Georgia, serif;
   }
-  main { padding: 18px 20px 16px; }
+  main {
+    min-height: 100vh;
+    padding: 18px 20px 16px;
+    box-shadow: inset 0 0 24px rgba(111, 82, 39, .1);
+  }
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .brand { display: flex; align-items: center; gap: 9px; }
   .brand-copy { display: flex; flex-direction: column; align-items: flex-start; }
@@ -63,6 +78,7 @@
   }
   .settings-open { width: 100%; margin-top: 9px; }
   .back { margin: 0 0 12px; }
+  #settings-view { margin-top: 18px; }
   .view-heading { margin: 0; font-size: 15px; }
   .gate { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
   .gate label { display: block; margin-bottom: 6px; font-weight: 650; }
@@ -79,10 +95,11 @@
     display: flex; align-items: flex-start; gap: 9px; padding: 7px 4px;
     border-radius: 5px; cursor: pointer;
   }
-  .preference:hover { background: #EDF4F0; }
+  .preference:hover { background: var(--green-soft); }
   .preference input { flex: 0 0 auto; width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--green); }
   .preference-copy { display: grid; gap: 1px; }
   .preference-copy strong { font-size: 11px; font-weight: 650; }
+  .preference-icon { font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif; }
   .preference-copy small { color: var(--muted); font-size: 10px; line-height: 1.35; }
   .preference-status { min-height: 15px; margin: 7px 0; color: var(--muted); font-size: 10px; }
   #out { margin-top: 18px; }
@@ -133,9 +150,9 @@
   <section id="home-view">
     <p class="lede">Understand what a policy says about your data before you agree</p>
 
-    <button class="go" id="read" type="button">Analyze This Page!</button>
+    <button class="go" id="read" type="button"><span aria-hidden="true">🔍</span> Analyze This Page!</button>
     <button class="settings-open" id="settings-open" type="button" aria-controls="settings-view">
-      Settings
+      <span aria-hidden="true">⚙️</span> Settings
     </button>
     <div id="gate" class="gate" hidden>
       <label for="code">Crew code</label>

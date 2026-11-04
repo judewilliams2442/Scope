@@ -4,37 +4,43 @@
     {
       key: "locationTracking",
       category: "location_tracking",
-      label: "Location tracking",
+      label: "Location Tracking",
+      icon: "📍",
       description: "Location data, GPS, geolocation, and location-based monitoring.",
     },
     {
       key: "aiDataTraining",
       category: "ai_training",
-      label: "AI data training",
+      label: "AI Data Training",
+      icon: "🤖",
       description: "Using user data to train or improve AI or machine-learning models.",
     },
     {
       key: "piiCollection",
       category: "pii_collection",
-      label: "Personal information collection",
+      label: "Personal Information Collection",
+      icon: "ℹ️",
       description: "Collecting identifying details such as names, email, phone, or IP addresses.",
     },
     {
       key: "thirdPartySharing",
       category: "third_party_sharing",
-      label: "Third-party sharing",
+      label: "Third-Party Sharing",
+      icon: "👥",
       description: "Sharing, selling, or disclosing data to external entities.",
     },
     {
       key: "targetedAdvertising",
       category: "targeted_advertising",
-      label: "Targeted advertising",
+      label: "Targeted Advertising",
+      icon: "🎯",
       description: "Personalized ads, advertising profiles, and ad-network tracking.",
     },
     {
       key: "retentionDeletion",
       category: "retention_deletion",
-      label: "Retention and deletion",
+      label: "Retention and Deletion",
+      icon: "🗑️",
       description: "How long data is kept, deletion policies, and removal requests.",
     },
   ];
@@ -145,7 +151,7 @@
   function renderPreferences(preferences) {
     const container = document.getElementById("preferences");
     container.replaceChildren(
-      ...PREFERENCES.map(({ key, label, description }) => {
+      ...PREFERENCES.map(({ key, label, description, icon }) => {
         const row = document.createElement("label");
         row.className = "preference";
 
@@ -185,7 +191,15 @@
         const copy = document.createElement("span");
         copy.className = "preference-copy";
         const title = document.createElement("strong");
-        title.textContent = label;
+        if (icon) {
+          const iconElement = document.createElement("span");
+          iconElement.className = "preference-icon";
+          iconElement.setAttribute("aria-hidden", "true");
+          iconElement.textContent = icon;
+          title.append(document.createTextNode(`${label} `), iconElement);
+        } else {
+          title.textContent = label;
+        }
         const detail = document.createElement("small");
         detail.textContent = description;
         copy.append(title, detail);
