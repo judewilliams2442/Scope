@@ -10,71 +10,77 @@ instead of a blank page. What ships to real users is yours to build.
 
 1. Chrome → `chrome://extensions` → turn on **Developer mode** (top right).
 2. **Load unpacked** → pick this folder.
-3. Open a site's privacy policy, click the Scope extension, enter the crew code
-   (Mr. Turner has it), and press **Analyze this page**.
+3. Use Chrome 138 or newer on a supported desktop device. Open a site's privacy policy,
+   click the Scope extension, and press **Analyze this page**.
 
-UI preview without spending budget: open `popup.html?demo=1` in a plain tab — it renders a
-canned analysis. The preview is illustrative and does not analyze the current page.
+The first analysis may need to download Chrome's on-device model; the popup shows progress.
+Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not use the model.
 
 ## How it works
 
 - `popup.js` grabs the open page's visible text **only when you press the button** (`activeTab`);
-  it does not inspect pages in the background. That text is sent to the analysis gateway.
+  it does not inspect pages in the background.
 - `settings.js` manages the summary-preference controls and saved choices. `popup.html` loads it
   before `popup.js`, which uses the `ScopeSettings` API when preparing and filtering analysis.
 - The popup's **Settings** button opens a separate preferences view, with a **Back** button to
   return to the main page. Analysis results stay hidden until the user presses **Analyze this page**.
-- The text goes to the school's AI gateway: `POST https://harness-ascte.netlify.app/api/fineprint`
-  with `{code, device, url, text, priorities, enabledCategories, summaryInstructions}`.
-  The popup accepts the legacy response and a structured `summary`, `findings`, and
-  `unknowns` format.
-- The popup checks displayed evidence excerpts against the extracted page text. The gateway
-  should also verify quotations and ground claims before returning analysis.
-- Budget is real: ~1¢ per read, 40 reads per device per day, $5/month for the whole crew,
-  and **every request is logged and readable by Mr. Turner.** The meter in the popup shows
-  what each read cost. Spending a read is itself a judgment call.
+- `popup.js` uses Chrome's built-in Prompt API (`LanguageModel`) to analyze the page text
+  locally. Scope does not send policy text to its server; after model setup, analysis can work
+  offline.
+- The model prompt includes all category preferences and descriptions, instructs the model to
+  treat policy text as untrusted, and requests categorized findings, unknowns, and verbatim
+  evidence quotes in schema-constrained JSON.
+- Scope validates the response, filters disabled topics again locally, and displays only quotes
+  found verbatim in the extracted page text. These checks do not guarantee that AI explanations
+  are correct.
+- Long policies are split into overlapping sections and analyzed in separate sessions, then
+  findings are deduplicated and combined. If even a small section exceeds the model's context
+  limit, Scope reports an error rather than silently truncating the policy.
 
 ### Summary preferences
 
-Open **Summary Preferences** to independently include or exclude location tracking, AI data
+Open **Settings** to independently include or exclude location tracking, AI data
 training, personal information collection, third-party sharing, targeted advertising, and
 retention/deletion. All six are on for new users. Choices are stored as booleans in
 `chrome.storage.local`; missing fields default to on while existing fields are preserved. The
 popup also migrates the earlier saved priority list.
 
-At the start of an analysis, the popup rereads saved choices and sends enabled category keys,
-labels, and instructions to discuss only enabled topics, avoid claims about excluded topics,
-and avoid inventing details. The UI filters categorized findings and unknowns locally, and
-builds its overview only from those filtered results. Unstructured gateway summaries are not
-displayed because the extension cannot safely remove disabled topics from free text. Legacy
-fields are shown only when their response field maps to an enabled category; unclassified
-legacy findings are omitted. If every category is off, no analysis request is sent.
+Preferences are included in the Prompt API system prompt and applied again locally. If every
+category is off, Scope opens Settings and does not initialize the model.
 
-The gateway and its model prompt are hosted outside this repository. They must honor the
-`enabledCategories` and `summaryInstructions` request fields and return categorized findings
-for full coverage, especially for location and advertising. A remote service that ignores
-these fields may still analyze disabled topics internally; the popup suppresses unclassified
-text but cannot guarantee model-side exclusion without a gateway update. The gateway should
-also continue treating policy text as untrusted input and verifying quotations.
+### Device and model availability
 
-### Preference verification
+The Prompt API in Chrome extensions requires Chrome 138 or newer. Chrome's current documented
+requirements include Windows 10/11, macOS 13+, Linux, or ChromeOS on Chromebook Plus; 22 GB free
+space on the Chrome profile volume; and either more than 4 GB of GPU VRAM or at least 16 GB of
+RAM and 4 CPU cores. Chrome on Android/iOS and non-Chromebook Plus ChromeOS are not supported.
+Requirements and availability may change.
 
-There is no test framework in this starter extension. To verify the feature manually:
+The model is downloaded separately and requires an unmetered connection for the initial
+download. Chrome reports progress to the popup. Model use does not require network access
+after setup. Chrome may remove the model when storage is low, so availability is checked for
+each analysis. Consult the current [Prompt API documentation](https://developer.chrome.com/docs/ai/prompt-api)
+and [built-in AI requirements](https://developer.chrome.com/docs/ai/get-started#requirements).
+
+### Manual verification
+
+There is no test framework in this starter extension. Verify manually:
 
 1. Load the unpacked extension, open its popup, and check that all six preferences are on.
    Change one, close/reopen the popup, and confirm it remains off; reload Chrome and confirm
    it remains off.
-2. With a policy containing several topics, disable one category and analyze. Confirm tagged
-   structured results for that category disappear while other enabled categories remain.
+2. With a policy containing several topics, disable one category and analyze. Confirm its
+   findings and unknowns do not appear while enabled topics remain.
    Repeat with multiple disabled categories.
-3. Turn off all six and analyze. Confirm the popup opens Summary Preferences with a clear
-   message and makes no gateway request.
-4. Confirm an enabled but unaddressed category is only described as unclear/not specified when
-   the gateway returns a categorized unknown; the extension does not infer absence.
-5. In DevTools, verify a partial saved preference object retains its boolean values and fills
-   missing values as on. Verify the analysis request contains the latest enabled categories.
-6. For overlapping topics, confirm the gateway returns separately categorized findings;
-   unclassified legacy fields should be omitted rather than risking display of a disabled topic.
+3. Turn off all six and analyze. Confirm Settings opens with a message and model initialization
+   does not start.
+4. On a device without a ready model, confirm availability/download status and progress.
+   Cancel during model preparation or analysis.
+5. Test a long policy. Confirm Scope analyzes it section by section and combines findings.
+   If a section still exceeds the model context after subdivision, confirm an actionable error
+   appears rather than partial findings being presented as a complete analysis.
+6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
+   described as absent.
 
 ## What's deliberately left for you (the actual capstone)
 
@@ -87,18 +93,15 @@ There is no test framework in this starter extension. To verify the feature manu
    accordions, PDFs, and multi-page policies all defeat it today.
 4. **Leave-ability actions** — a button that prefills the GDPR/CCPA deletion-request email.
 5. **Real icons** — the placeholder icons are programmer art.
-6. **The Web Store listing** — privacy policy explaining that page text is sent to the school's
-   gateway only for user-initiated analysis and that requests are logged, screenshots,
-   review process. Shipping is part of the work.
+6. **The Web Store listing** — explain on-device analysis, the initial model download, and
+   supported-device limitations. Shipping is part of the work.
 7. **Testing against the wild** — build a list of 20 real privacy policies, run them all, log where
-   the analysis is wrong or thin, tune the prompt (in the lane) with Mr. Turner.
+   the analysis is wrong or thin, and refine the on-device prompt.
 
 ## The rules that ride along
 
 - Your capstone requires journaling, crediting AI, and showing your own contributions.
-  This README is the honest line: **the skeleton (lane + popup loop + quote-fence) existed
+  This README is the honest line: **the starter popup flow and quote-fence existed
   on day one; everything in the list above is yours.** Keep that line true in your write-ups.
-- Evidence shown by the extension must match text from the page. Keep that standard when
-  adding features, and make sure the gateway grounds its claims as well.
-- The lane rides the school's gateway on Mr. Turner's account — treat the budget like the
-  shared resource it is.
+- Evidence shown by the extension must match text from the page. Local quote checks do not
+  guarantee that every AI explanation is correct.
