@@ -36,16 +36,17 @@
     max-height: 680px;
     overflow-y: auto;
     background-color: var(--background);
-    background-image:
-      radial-gradient(ellipse at 16% 12%, rgba(255, 255, 255, .62), transparent 48%),
-      radial-gradient(ellipse at 88% 82%, rgba(153, 113, 55, .1), transparent 45%),
-      repeating-linear-gradient(0deg, rgba(105, 78, 40, .035) 0, rgba(105, 78, 40, .035) 1px, transparent 1px, transparent 4px);
     color: var(--text);
     font: 13px/1.5 "Spectral", Georgia, serif;
   }
   main {
     min-height: 100vh;
     padding: 18px 20px 16px;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(ellipse at 16% 12%, rgba(255, 255, 255, .62), transparent 48%),
+      radial-gradient(ellipse at 88% 82%, rgba(153, 113, 55, .1), transparent 45%),
+      repeating-linear-gradient(0deg, rgba(105, 78, 40, .035) 0, rgba(105, 78, 40, .035) 1px, transparent 1px, transparent 4px);
     box-shadow: inset 0 0 24px rgba(111, 82, 39, .1);
   }
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
