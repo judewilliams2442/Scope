@@ -33,8 +33,9 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not us
 - Scope validates the response, filters disabled topics again locally, and displays only quotes
   found verbatim in the extracted page text. These checks do not guarantee that AI explanations
   are correct.
-- Long policies can exceed the model's context limit. Scope reports the error rather than
-  silently truncating the policy.
+- Long policies are split into overlapping sections and analyzed in separate sessions, then
+  findings are deduplicated and combined. If even a small section exceeds the model's context
+  limit, Scope reports an error rather than silently truncating the policy.
 
 ### Summary preferences
 
@@ -75,8 +76,9 @@ There is no test framework in this starter extension. Verify manually:
    does not start.
 4. On a device without a ready model, confirm availability/download status and progress.
    Cancel during model preparation or analysis.
-5. Test a long policy that exceeds the model context. Confirm an actionable error appears and
-   partial text is not presented as a complete analysis.
+5. Test a long policy. Confirm Scope analyzes it section by section and combines findings.
+   If a section still exceeds the model context after subdivision, confirm an actionable error
+   appears rather than partial findings being presented as a complete analysis.
 6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
    described as absent.
 
