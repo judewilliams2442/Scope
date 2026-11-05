@@ -696,7 +696,9 @@ function render(analysis, sourceText, preferences) {
     show("err", "Nothing was found to analyze!");
     return;
   }
-  $("summary").textContent = summaryItems.join(" ");
+  $("summary").replaceChildren(
+    ...summaryItems.map((item) => textElement("li", "", item))
+  );
 
   const confidence = typeof analysis.confidence_note === "string"
     ? analysis.confidence_note.trim()
