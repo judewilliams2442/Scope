@@ -106,11 +106,18 @@
   .result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
   .result-head h2 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
   .result-label { color: var(--muted); font-size: 10px; }
+  .collapse-toggle {
+    display: block; min-height: 27px; margin: 7px auto 0 0; padding: 3px 8px;
+    border: 1px solid var(--border); border-radius: 5px;
+    background: var(--surface); color: var(--green-dark); font-size: 10px;
+    font-weight: 650;
+  }
   .result-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
   .result-section:last-of-type { border-bottom: 0; }
   .section-label {
     margin: 0 0 6px; color: var(--muted); font-size: 10px;
     font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    cursor: pointer;
   }
   .summary { margin: 0; font-size: 13px; font-weight: 570; line-height: 1.55; }
   .finding { padding: 9px 0; }
@@ -162,42 +169,46 @@
         <h2>Policy analysis</h2>
         <span class="result-label">Processed on this device</span>
       </div>
-      <section class="result-section">
-        <h3 class="section-label">Privacy overview</h3>
+      <button class="collapse-toggle" id="toggle-summaries" type="button" hidden>Collapse All</button>
+      <details class="result-section" open>
+        <summary class="section-label">Privacy overview</summary>
         <p class="summary" id="summary"></p>
-      </section>
-      <section class="result-section" id="findings-section" hidden>
-        <h3 class="section-label">Key findings</h3>
+      </details>
+      <details class="result-section" id="findings-section" hidden open>
+        <summary class="section-label">Key findings</summary>
         <div id="findings"></div>
-      </section>
-      <section class="result-section" id="legacy-section" hidden>
-        <section class="result-section" id="legacy-take-section" hidden>
-          <h3 class="section-label">Data collected</h3>
+      </details>
+      <div id="legacy-section" hidden>
+        <details class="result-section" id="legacy-take-section" hidden open>
+          <summary class="section-label">Data collected</summary>
           <ul id="legacy-take"></ul>
-        </section>
-        <section class="result-section" id="legacy-share-section" hidden>
-          <h3 class="section-label">Who receives the data</h3>
+        </details>
+        <details class="result-section" id="legacy-share-section" hidden open>
+          <summary class="section-label">Who receives the data</summary>
           <ul id="legacy-share"></ul>
-        </section>
-        <section class="result-section" id="legacy-ai-section" hidden>
-          <h3 class="section-label">AI training</h3>
+        </details>
+        <details class="result-section" id="legacy-ai-section" hidden open>
+          <summary class="section-label">AI training</summary>
           <div id="legacy-ai"></div>
           <div id="legacy-ai-evidence"></div>
-        </section>
-        <section class="result-section" id="legacy-flags-section" hidden>
-          <h3 class="section-label">Potential concerns</h3>
+        </details>
+        <details class="result-section" id="legacy-flags-section" hidden open>
+          <summary class="section-label">Potential concerns</summary>
           <div id="legacy-flags"></div>
-        </section>
-        <section class="result-section" id="legacy-leave-section" hidden>
-          <h3 class="section-label">Retention and deletion</h3>
+        </details>
+        <details class="result-section" id="legacy-leave-section" hidden open>
+          <summary class="section-label">Retention and deletion</summary>
           <p class="finding-copy" id="legacy-leave"></p>
-        </section>
-      </section>
-      <section class="result-section" id="unknowns-section" hidden>
-        <h3 class="section-label">Not established by the available text</h3>
+        </details>
+      </div>
+      <details class="result-section" id="unknowns-section" hidden open>
+        <summary class="section-label">Not established by the available text</summary>
         <div id="unknowns"></div>
-      </section>
-      <p class="confidence" id="confidence" hidden></p>
+      </details>
+      <details class="result-section" id="confidence-section" hidden open>
+        <summary class="section-label">Confidence note</summary>
+        <p class="confidence" id="confidence"></p>
+      </details>
     </div>
 
     <p class="foot">Page text is analyzed on this device and is not sent to Scope's server.</p>

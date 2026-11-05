@@ -192,12 +192,12 @@ async function pageText() {
     const text = results?.[0]?.result ?? "";
 
     if (typeof text !== "string" || !text.trim()) {
-      throw new Error("No readable page text was found. Open the privacy policy and try again.");
+      throw new Error("Nothing was found to analyze!");
     }
 
     return text;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("No readable")) {
+    if (error instanceof Error && error.message === "Nothing was found to analyze!") {
       throw error;
     }
     throw new Error("Could not read this page. Try reloading the tab and opening its privacy policy.");
@@ -692,9 +692,11 @@ function render(analysis, sourceText, preferences) {
   } else {
     summaryItems.push(...renderLegacy(analysis, sourceText, preferences));
   }
-  $("summary").textContent = summaryItems.length
-    ? summaryItems.join(" ")
-    : "The on-device model returned no findings for your enabled summary categories.";
+  if (!summaryItems.length) {
+    show("err", "Nothing was found to analyze!");
+    return;
+  }
+  $("summary").textContent = summaryItems.join(" ");
 
   const confidence = typeof analysis.confidence_note === "string"
     ? analysis.confidence_note.trim()
@@ -702,9 +704,29 @@ function render(analysis, sourceText, preferences) {
   const canShowUncategorizedText =
     settings.enabled(preferences).length === settings.count;
   $("confidence").textContent = canShowUncategorizedText ? confidence : "";
-  $("confidence").hidden = !canShowUncategorizedText || !confidence;
+  $("confidence-section").hidden = !canShowUncategorizedText || !confidence;
 
   $("out").hidden = false;
+  updateSummaryToggle();
+}
+
+function visibleSummarySections() {
+  const out = $("out");
+  return [...out.querySelectorAll("details.result-section")].filter((section) => {
+    for (let element = section; element && element !== out; element = element.parentElement) {
+      if (element.hidden) return false;
+    }
+    return true;
+  });
+}
+
+function updateSummaryToggle() {
+  const sections = visibleSummarySections();
+  const button = $("toggle-summaries");
+  button.hidden = $("out").hidden || sections.length === 0;
+  button.textContent = sections.some((section) => !section.open)
+    ? "Expand All"
+    : "Collapse All";
 }
 
 function show(id, text) {
@@ -714,7 +736,7 @@ function show(id, text) {
 }
 
 function hideAll() {
-  ["status", "err", "confidence"].forEach((id) => {
+  ["status", "err", "confidence-section", "toggle-summaries"].forEach((id) => {
     $(id).hidden = true;
   });
   $("out").hidden = true;
@@ -741,6 +763,17 @@ function showView(view) {
 
 async function initialize() {
   hideAll();
+  $("out").querySelectorAll("details.result-section").forEach((section) => {
+    section.addEventListener("toggle", updateSummaryToggle);
+  });
+  $("toggle-summaries").addEventListener("click", () => {
+    const sections = visibleSummarySections();
+    const expand = sections.some((section) => !section.open);
+    sections.forEach((section) => {
+      section.open = expand;
+    });
+    updateSummaryToggle();
+  });
   $("settings-open").addEventListener("click", () => {
     $("settings-error").hidden = true;
     $("settings-message").hidden = true;
