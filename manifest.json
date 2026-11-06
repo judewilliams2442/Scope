@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Understand what a website's privacy policy says about your data.",
   "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["https://your-netlify-site.netlify.app/*"],
+  "host_permissions": ["https://heroic-banoffee-57c451.netlify.app/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Scope - privacy policy analysis"

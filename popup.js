@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");
 const settings = globalThis.ScopeSettings;
-const API_ENDPOINT = "https://your-netlify-site.netlify.app/api/fineprint";
+const API_ENDPOINT = "https://heroic-banoffee-57c451.netlify.app/api/fineprint";
 let currentPreferences;
 let analysisController;
 
