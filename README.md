@@ -24,8 +24,10 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
   the `/api/fineprint` function on your own configured Netlify site. It never sends policy text
   to the old harness service, never calls Mistral directly, and never contains the Mistral API key.
 - `netlify/functions/fineprint.mjs` validates the request, checks the configured model context,
-  calls Mistral's chat-completions API, validates its JSON, and rejects any supporting quote that
-  does not appear verbatim in the submitted text. It does not store policy text or results.
+  calls Mistral's chat-completions API, validates its JSON, and rejects supporting quotes that
+  cannot be matched to the submitted text. Quote matching tolerates equivalent Unicode
+  punctuation and whitespace, but returns the exact excerpt from the submitted text. It does not
+  store policy text or results.
 - The backend returns structured findings and the legacy response fields. The popup validates
   the response again, filters disabled topics locally, and displays only quotes found in the
   extracted page text. These checks do not guarantee that AI explanations are correct.
@@ -112,4 +114,3 @@ not make paid API requests. Then verify manually:
    limits, and shows an actionable error otherwise.
 6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
    described as absent.
-

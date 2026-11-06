@@ -75,7 +75,7 @@ For each substantive finding, provide one concise exact quotation copied from th
 Keep output compact: at most one finding per category, at most six findings total, one evidence quote per finding, and one unknown per category. Keep explanations to one sentence.
 If the text is not a privacy policy, set isPrivacyPolicy to false, deal to an empty string, deal_evidence and findings and unknowns to empty arrays, and ai_training to {"answer":"unclear","quote":""}.
 For AI training, answer yes only if the text supports use of personal data to train, improve, or develop AI models; answer no only if the policy explicitly rules that out; otherwise answer unclear. A yes/no answer must include an exact supporting quotation, and the same quote must be included in the ai_training finding evidence.
-For pii_collection, include personal, sensitive, account, device, and usage data the policy says is collected. For third_party_sharing, identify recipient types and stated purposes or conditions. For retention_deletion, report stated retention periods and deletion choices. For location_tracking, distinguish precise location from general location or inferred location. For targeted_advertising, report the policy's stated use of information for personalized ads.
+Assess every category against the entire text, including statements under unexpected headings and descriptions that use synonyms rather than the category name. Do not mark a category unspecified until you have checked all relevant sections. For pii_collection, include personal, sensitive, account, device, and usage data the policy says is collected. For third_party_sharing, identify recipient types and stated purposes or conditions. For retention_deletion, report stated retention periods and deletion choices. For location_tracking, distinguish precise location from general or IP-inferred location. For targeted_advertising, include statements about personalized, relevant, or interest-based ads and the information used to select them.
 Cover all six categories in findings or unknowns. Include a short deal summary and exact supporting quotation when it is a privacy policy.`;
 
 class HttpError extends Error {
@@ -248,10 +248,19 @@ function normalizeWhitespaceWithOffsets(text) {
       continue;
     }
 
-    normalized += text[index];
-    starts.push(index);
-    ends.push(index + 1);
-    index += 1;
+    const character = String.fromCodePoint(text.codePointAt(index));
+    const end = index + character.length;
+    const normalizedCharacter = character.normalize("NFKC")
+      .replace(/[\u2018\u2019\u201a\u201b\u2032]/g, "'")
+      .replace(/[\u201c\u201d\u201e\u201f\u2033]/g, '"')
+      .replace(/[\u2010-\u2015\u2212]/g, "-")
+      .replace(/\u2026/g, "...");
+    for (const normalizedCodePoint of normalizedCharacter) {
+      normalized += normalizedCodePoint;
+      starts.push(index);
+      ends.push(end);
+    }
+    index = end;
   }
 
   return { normalized, starts, ends };

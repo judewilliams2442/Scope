@@ -179,6 +179,30 @@ test("analyzes the complete policy and returns compatible, quoted JSON", async (
   }
 });
 
+test("matches equivalent Unicode punctuation and returns the exact source quote", async () => {
+  const policy = "We’re improving our services — for example, “searches.”";
+  const modelQuote = "We're improving our services - for example, \"searches.\"";
+  const analysis = validAnalysis();
+  analysis.deal = "The policy describes using searches to improve services.";
+  analysis.deal_evidence = [{ quote: modelQuote }];
+  analysis.findings = [{
+    category: "pii_collection",
+    title: "Search activity",
+    explanation: "The policy describes using search activity.",
+    status: "explicitly_stated",
+    severity: "informational",
+    evidence: [{ quote: modelQuote }],
+  }];
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({ policy }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.deal_evidence[0].quote, policy);
+  assert.equal(result.findings[0].evidence[0].quote, policy);
+});
+
 test("rejects oversized policies without truncating or calling Mistral", async () => {
   let fetchCount = 0;
   globalThis.fetch = async () => {
