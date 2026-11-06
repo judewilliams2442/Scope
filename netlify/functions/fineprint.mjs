@@ -188,16 +188,59 @@ function requireString(value, label, maxLength = 1_000) {
   return value.trim();
 }
 
+function normalizeWhitespaceWithOffsets(text) {
+  let normalized = "";
+  const starts = [];
+  const ends = [];
+
+  for (let index = 0; index < text.length;) {
+    if (/\s/.test(text[index])) {
+      const start = index;
+      while (index < text.length && /\s/.test(text[index])) index += 1;
+      normalized += " ";
+      starts.push(start);
+      ends.push(index);
+      continue;
+    }
+
+    normalized += text[index];
+    starts.push(index);
+    ends.push(index + 1);
+    index += 1;
+  }
+
+  return { normalized, starts, ends };
+}
+
+function findPolicyQuote(value, policy) {
+  const quote = value.trim();
+  if (!quote) return null;
+  if (policy.includes(quote)) return quote;
+
+  const normalizedPolicy = normalizeWhitespaceWithOffsets(policy);
+  const normalizedQuote = normalizeWhitespaceWithOffsets(quote).normalized.trim();
+  const normalizedIndex = normalizedPolicy.normalized.indexOf(normalizedQuote);
+  if (normalizedIndex < 0 || !normalizedQuote) return null;
+
+  const start = normalizedPolicy.starts[normalizedIndex];
+  const end = normalizedPolicy.ends[normalizedIndex + normalizedQuote.length - 1];
+  return policy.slice(start, end);
+}
+
 function validateQuotes(values, policy, label) {
   if (!Array.isArray(values)) {
     throw new HttpError(502, `Mistral returned invalid ${label}. Please try again.`);
   }
   return values.map((item) => {
     const quote = requireString(item?.quote, "supporting quotation", 1_500);
-    if (!policy.includes(quote)) {
-      throw new HttpError(502, "Mistral returned a quotation that does not match the policy. Please try again.");
+    const sourceQuote = findPolicyQuote(quote, policy);
+    if (!sourceQuote) {
+      throw new HttpError(
+        502,
+        "Mistral returned a quotation that could not be verified in the policy. No unsupported analysis was returned. Please try again."
+      );
     }
-    return { quote };
+    return { quote: sourceQuote };
   });
 }
 
@@ -281,15 +324,20 @@ function validateAnalysis(value, policy) {
   ) {
     throw new HttpError(502, "Mistral returned an invalid AI-training assessment. Please try again.");
   }
-  const aiQuote = ai.quote.trim();
+  const aiQuote = ai.quote.trim()
+    ? findPolicyQuote(ai.quote, policy)
+    : "";
   if (
     (ai.answer === "yes" || ai.answer === "no") &&
-    (!aiQuote || !policy.includes(aiQuote))
+    !aiQuote
   ) {
     throw new HttpError(502, "Mistral returned an unsupported AI-training claim. Please try again.");
   }
-  if (aiQuote && !policy.includes(aiQuote)) {
-    throw new HttpError(502, "Mistral returned a quotation that does not match the policy. Please try again.");
+  if (ai.quote.trim() && !aiQuote) {
+    throw new HttpError(
+      502,
+      "Mistral returned a quotation that could not be verified in the policy. No unsupported analysis was returned. Please try again."
+    );
   }
 
   const findingCategories = new Set(findings.map(({ category }) => category));

@@ -8,7 +8,8 @@ import { handler } from "../netlify/functions/fineprint.mjs";
 
 const EXTENSION_ORIGIN = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
 const POLICY = [
-  "We collect account information.",
+  "We collect account",
+  "information.",
   "We do not use personal data to train AI models.",
   "We share data with service providers.",
   "We retain data for as long as needed.",
@@ -158,10 +159,15 @@ test("analyzes the complete policy and returns compatible, quoted JSON", async (
   assert.equal(result.who_gets_it.length, 1);
   assert.equal(result.red_flags.length, 1);
   assert.equal(result.findings.length, 4);
+  assert.equal(result.deal_evidence[0].quote, "We collect account\ninformation.");
+  assert.equal(result.findings[0].evidence[0].quote, "We collect account\ninformation.");
   for (const finding of result.findings) {
     for (const evidence of finding.evidence) {
       assert.ok(POLICY.includes(evidence.quote));
     }
+  }
+  for (const evidence of result.deal_evidence) {
+    assert.ok(POLICY.includes(evidence.quote));
   }
 });
 
@@ -227,7 +233,7 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   installMistral({ completion: badQuote });
   response = await handler(request({ policy: POLICY }));
   assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /does not match the policy/);
+  assert.match((await response.json()).error, /could not be verified in the policy/);
 
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));
