@@ -1,0 +1,8 @@
+[build]
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/fineprint"
+  to = "/.netlify/functions/fineprint"
+  status = 200
+  force = true

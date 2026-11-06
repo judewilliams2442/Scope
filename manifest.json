@@ -3,8 +3,8 @@
   "name": "Scope",
   "version": "0.1.0",
   "description": "Understand what a website's privacy policy says about your data.",
-  "minimum_chrome_version": "138",
   "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://your-netlify-site.netlify.app/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Scope - privacy policy analysis"

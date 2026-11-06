@@ -170,12 +170,13 @@
     <div id="out" hidden>
       <div class="result-head">
         <h2>Policy analysis</h2>
-        <span class="result-label">Processed on this device</span>
+        <span class="result-label" id="result-label">Analyzed by Mistral</span>
       </div>
       <button class="collapse-toggle" id="toggle-summaries" type="button" hidden>Collapse All</button>
       <details class="result-section" open>
         <summary class="section-label">Privacy overview</summary>
         <ul class="summary" id="summary"></ul>
+        <div id="deal-evidence"></div>
       </details>
       <details class="result-section" id="findings-section" hidden open>
         <summary class="section-label">Key findings</summary>
@@ -214,7 +215,7 @@
       </details>
     </div>
 
-    <p class="foot">Page text is analyzed on this device and is not sent to Scope's server.</p>
+    <p class="foot" id="privacy-note">Page text is sent to your Scope backend and Mistral for analysis. Scope does not store it.</p>
   </section>
 
   <section id="settings-view" aria-labelledby="settings-heading" hidden>

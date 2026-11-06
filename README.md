@@ -10,11 +10,10 @@ instead of a blank page. What ships to real users is yours to build.
 
 1. Chrome → `chrome://extensions` → turn on **Developer mode** (top right).
 2. **Load unpacked** → pick this folder.
-3. Use Chrome 138 or newer on a supported desktop device. Open a site's privacy policy,
+3. Use a current Chrome version. Open a site's privacy policy,
    click the Scope extension, and press **Analyze this page**.
 
-The first analysis may need to download Chrome's on-device model; the popup shows progress.
-Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not use the model.
+Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not make an API request.
 
 ## How it works
 
@@ -24,18 +23,17 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not us
   before `popup.js`, which uses the `ScopeSettings` API when preparing and filtering analysis.
 - The popup's **Settings** button opens a separate preferences view, with a **Back** button to
   return to the main page. Analysis results stay hidden until the user presses **Analyze this page**.
-- `popup.js` uses Chrome's built-in Prompt API (`LanguageModel`) to analyze the page text
-  locally. Scope does not send policy text to its server; after model setup, analysis can work
-  offline.
-- The model prompt includes all category preferences and descriptions, instructs the model to
-  treat policy text as untrusted, and requests categorized findings, unknowns, and verbatim
-  evidence quotes in schema-constrained JSON.
-- Scope validates the response, filters disabled topics again locally, and displays only quotes
-  found verbatim in the extracted page text. These checks do not guarantee that AI explanations
-  are correct.
-- Long policies are split into overlapping sections and analyzed in separate sessions, then
-  findings are deduplicated and combined. If even a small section exceeds the model's context
-  limit, Scope reports an error rather than silently truncating the policy.
+- `popup.js` reads the visible page text only after the user presses Analyze, then sends it to
+  the `/api/fineprint` function on your own configured Netlify site. It never sends policy text
+  to the old harness service, never calls Mistral directly, and never contains the Mistral API key.
+- `netlify/functions/fineprint.mjs` validates the request, checks the configured model context,
+  calls Mistral's chat-completions API, validates its JSON, and rejects any supporting quote that
+  does not appear verbatim in the submitted text. It does not store policy text or results.
+- The backend returns structured findings and the legacy response fields. The popup validates
+  the response again, filters disabled topics locally, and displays only quotes found in the
+  extracted page text. These checks do not guarantee that AI explanations are correct.
+- Policies are sent whole, not chunked or truncated. Requests larger than 100,000 UTF-8 bytes or
+  estimated to exceed the configured model's context are rejected with an error.
 
 ### Summary preferences
 
@@ -45,26 +43,65 @@ retention/deletion. All six are on for new users. Choices are stored as booleans
 `chrome.storage.local`; missing fields default to on while existing fields are preserved. The
 popup also migrates the earlier saved priority list.
 
-Preferences are included in the Prompt API system prompt and applied again locally. If every
-category is off, Scope opens Settings and does not initialize the model.
+The backend analyzes all six topics. Preferences are applied locally before findings are shown.
+If every category is off, Scope opens Settings and does not send the policy.
 
-### Device and model availability
+### Backend setup and deployment
 
-The Prompt API in Chrome extensions requires Chrome 138 or newer. Chrome's current documented
-requirements include Windows 10/11, macOS 13+, Linux, or ChromeOS on Chromebook Plus; 22 GB free
-space on the Chrome profile volume; and either more than 4 GB of GPU VRAM or at least 16 GB of
-RAM and 4 CPU cores. Chrome on Android/iOS and non-Chromebook Plus ChromeOS are not supported.
-Requirements and availability may change.
+The backend runs on Netlify Functions and uses Node.js 20 or newer. Install the Netlify CLI
+(`npm.cmd install -g netlify-cli` from PowerShell) for local development.
 
-The model is downloaded separately and requires an unmetered connection for the initial
-download. Chrome reports progress to the popup. Model use does not require network access
-after setup. Chrome may remove the model when storage is low, so availability is checked for
-each analysis. Consult the current [Prompt API documentation](https://developer.chrome.com/docs/ai/prompt-api)
-and [built-in AI requirements](https://developer.chrome.com/docs/ai/get-started#requirements).
+Create or use a Netlify site that you control, and deploy this repository's
+`netlify/functions/fineprint.mjs` function and `netlify.toml` redirect so `/api/fineprint` reaches
+the function. The extension is intentionally configured with a placeholder URL; replace
+`your-netlify-site` with your own Netlify site subdomain in both `API_ENDPOINT` in `popup.js` and
+`host_permissions` in `manifest.json`. Configure these variables in your own Netlify site's
+environment settings (local `.env` values are not deployed):
+
+- `MISTRAL_API_KEY`: a server-side Mistral API key.
+- `MISTRAL_MODEL`: an inference model available to that key, such as `ministral-3b-latest`.
+- `SCOPE_ALLOWED_ORIGINS`: the exact extension origin, `chrome-extension://<extension-id>`.
+- `MISTRAL_CONTEXT_TOKENS`: optional override only if the Mistral model listing does not return
+  `max_context_length`; set it to the model's documented context limit.
+
+For an unpacked extension, copy its ID from the card on `chrome://extensions` with Developer
+mode enabled. Use the published extension ID for a store release.
+
+For local Netlify development, configure `MISTRAL_API_KEY`, `MISTRAL_MODEL`, and
+`SCOPE_ALLOWED_ORIGINS` in the ignored `.env` file (use `.env.example` as a reference without
+overwriting an existing `.env`), then run `netlify.cmd dev`. Point `API_ENDPOINT` and the manifest
+host permission to your local Netlify dev URL while testing, then restore your own deployed URL.
+
+After configuring the Netlify environment variables, link your site with `netlify.cmd link` and
+deploy with `netlify.cmd deploy --prod`, or push to its linked Git branch. Reload the unpacked
+extension. Never commit `.env`.
+
+To test the deployed endpoint manually from PowerShell (this sends the file to Mistral and may
+incur usage charges):
+
+```powershell
+$body = @{ policy = Get-Content .\policy.txt -Raw } | ConvertTo-Json -Compress
+Invoke-RestMethod -Uri "https://your-netlify-site.netlify.app/api/fineprint" `
+  -Method Post -ContentType "application/json" -Body $body
+```
+
+The backend uses Mistral's documented [chat-completions API](https://docs.mistral.ai/api/) and
+Bearer API-key authentication. It requests JSON mode and uses the selected model's context limit
+when supplied by Mistral. Its token preflight is conservative but estimated; Mistral remains the
+final authority and may reject a request at its true context limit. There is no chunking, because
+partial analysis could omit important policy terms.
+The model-list and analysis requests share an 8-second total timeout; Netlify plan execution
+limits may still be shorter.
+
+The endpoint is publicly reachable by design so installed extensions can use it. CORS allowlists
+browser extension origins but is not authentication against non-browser callers. Before broad
+distribution, configure Netlify-level rate limits or another server-side abuse control to protect
+the Mistral account quota.
 
 ### Manual verification
 
-There is no test framework in this starter extension. Verify manually:
+Run backend validation tests with `node --test test/fineprint.test.mjs`. They mock Mistral and do
+not make paid API requests. Then verify manually:
 
 1. Load the unpacked extension, open its popup, and check that all six preferences are on.
    Change one, close/reopen the popup, and confirm it remains off; reload Chrome and confirm
@@ -72,13 +109,10 @@ There is no test framework in this starter extension. Verify manually:
 2. With a policy containing several topics, disable one category and analyze. Confirm its
    findings and unknowns do not appear while enabled topics remain.
    Repeat with multiple disabled categories.
-3. Turn off all six and analyze. Confirm Settings opens with a message and model initialization
-   does not start.
-4. On a device without a ready model, confirm availability/download status and progress.
-   Cancel during model preparation or analysis.
-5. Test a long policy. Confirm Scope analyzes it section by section and combines findings.
-   If a section still exceeds the model context after subdivision, confirm an actionable error
-   appears rather than partial findings being presented as a complete analysis.
+3. Turn off all six and analyze. Confirm Settings opens with a message and no request is sent.
+4. Cancel during an analysis request and confirm the request stops.
+5. Test a long policy. Confirm Scope sends it whole if it fits the byte and estimated context
+   limits, and shows an actionable error otherwise.
 6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
    described as absent.
 
@@ -93,10 +127,10 @@ There is no test framework in this starter extension. Verify manually:
    accordions, PDFs, and multi-page policies all defeat it today.
 4. **Leave-ability actions** — a button that prefills the GDPR/CCPA deletion-request email.
 5. **Real icons** — the placeholder icons are programmer art.
-6. **The Web Store listing** — explain on-device analysis, the initial model download, and
-   supported-device limitations. Shipping is part of the work.
-7. **Testing against the wild** — build a list of 20 real privacy policies, run them all, log where
-   the analysis is wrong or thin, and refine the on-device prompt.
+6. **The Web Store listing** — explain that policy text is sent to the backend and Mistral for
+   analysis, and describe applicable privacy practices. Shipping is part of the work.
+7. **Testing against the wild** — build a list of real privacy policies, run them all, log where
+   the analysis is wrong or thin, and refine the server-side prompt.
 
 ## The rules that ride along
 
