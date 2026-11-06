@@ -2,7 +2,7 @@ const MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions";
 const MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models";
 const MAX_POLICY_BYTES = 100_000;
 const MAX_BODY_BYTES = 200_000;
-const MAX_OUTPUT_TOKENS = 1_800;
+const MAX_OUTPUT_TOKENS = 4_096;
 const MISTRAL_TIMEOUT_MS = 50_000;
 const CATEGORIES = [
   "location_tracking",

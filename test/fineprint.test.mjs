@@ -90,6 +90,7 @@ function installMistral({
   chatStatus = 200,
   completion,
   completionContent,
+  finishReason = "stop",
 } = {}) {
   globalThis.fetch = async (url, options) => {
     if (url === "https://api.mistral.ai/v1/models") {
@@ -110,7 +111,7 @@ function installMistral({
     }
     return Response.json({
       choices: [{
-        finish_reason: "stop",
+        finish_reason: finishReason,
         message: {
           content: completionContent ?? JSON.stringify(completion ?? validAnalysis()),
         },
@@ -149,6 +150,7 @@ test("analyzes the complete policy and returns compatible, quoted JSON", async (
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), EXTENSION_ORIGIN);
   assert.equal(lastChatRequest.model, "ministral-3b-latest");
+  assert.equal(lastChatRequest.max_tokens, 4096);
   assert.ok(lastChatRequest.messages[1].content.endsWith(POLICY));
   assert.equal(result.deal, validAnalysis().deal);
   assert.equal(result.ai_training.answer, "no");
@@ -231,6 +233,15 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   response = await handler(request({ policy: POLICY }));
   assert.equal(response.status, 502);
   assert.match((await response.json()).error, /malformed JSON/);
+});
+
+test("reports a model completion cut off by its output token limit", async () => {
+  installMistral({ finishReason: "length" });
+  const response = await handler(request({ policy: POLICY }));
+  const result = await response.json();
+
+  assert.equal(response.status, 502);
+  assert.match(result.error, /response limit was reached/);
 });
 
 test("maps network failures to a safe error response", async () => {

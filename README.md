@@ -87,9 +87,9 @@ Invoke-RestMethod -Uri "https://your-netlify-site.netlify.app/api/fineprint" `
 
 The backend uses Mistral's documented [chat-completions API](https://docs.mistral.ai/api/) and
 Bearer API-key authentication. It requests JSON mode and uses the selected model's context limit
-when supplied by Mistral. Its token preflight is conservative but estimated; Mistral remains the
-final authority and may reject a request at its true context limit. There is no chunking, because
-partial analysis could omit important policy terms.
+when supplied by Mistral. The response budget is 4,096 tokens and is included in the conservative
+context preflight; Mistral remains the final authority and may reject a request at its true
+context limit. There is no chunking, because partial analysis could omit important policy terms.
 The model-list and analysis requests share a 50-second total timeout, leaving time within
 Netlify's documented 60-second synchronous function limit. Plan-specific limits may be lower.
 
