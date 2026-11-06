@@ -3,9 +3,6 @@
 A Chrome extension that analyzes the privacy policy open in your browser and presents the
 available findings in plain language, with supporting policy excerpts where available.
 
-This folder is your **starting skeleton**, built so your capstone starts from a working loop
-instead of a blank page. What ships to real users is yours to build.
-
 ## Run it (2 minutes)
 
 1. Chrome → `chrome://extensions` → turn on **Developer mode** (top right).
@@ -116,26 +113,3 @@ not make paid API requests. Then verify manually:
 6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
    described as absent.
 
-## What's deliberately left for you (the actual capstone)
-
-1. **The consent-moment card** — the analysis shouldn't live in a popup someone remembers
-   to click. Detect the "I agree" moment and offer the card right there. (Careful: doing
-   this without a standing content script on every page is the hard, interesting problem.)
-2. **The diff** — "since you agreed in March, retention went from 30 days to forever."
-   Store what a user agreed to (locally!) and compare on return visits.
-3. **Better page extraction** — `document.body.innerText` is crude. Terms behind tabs,
-   accordions, PDFs, and multi-page policies all defeat it today.
-4. **Leave-ability actions** — a button that prefills the GDPR/CCPA deletion-request email.
-5. **Real icons** — the placeholder icons are programmer art.
-6. **The Web Store listing** — explain that policy text is sent to the backend and Mistral for
-   analysis, and describe applicable privacy practices. Shipping is part of the work.
-7. **Testing against the wild** — build a list of real privacy policies, run them all, log where
-   the analysis is wrong or thin, and refine the server-side prompt.
-
-## The rules that ride along
-
-- Your capstone requires journaling, crediting AI, and showing your own contributions.
-  This README is the honest line: **the starter popup flow and quote-fence existed
-  on day one; everything in the list above is yours.** Keep that line true in your write-ups.
-- Evidence shown by the extension must match text from the page. Local quote checks do not
-  guarantee that every AI explanation is correct.
