@@ -90,8 +90,8 @@ Bearer API-key authentication. It requests JSON mode and uses the selected model
 when supplied by Mistral. Its token preflight is conservative but estimated; Mistral remains the
 final authority and may reject a request at its true context limit. There is no chunking, because
 partial analysis could omit important policy terms.
-The model-list and analysis requests share an 8-second total timeout; Netlify plan execution
-limits may still be shorter.
+The model-list and analysis requests share a 50-second total timeout, leaving time within
+Netlify's documented 60-second synchronous function limit. Plan-specific limits may be lower.
 
 The endpoint is publicly reachable by design so installed extensions can use it. CORS allowlists
 browser extension origins but is not authentication against non-browser callers. Before broad
