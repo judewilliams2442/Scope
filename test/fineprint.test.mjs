@@ -232,8 +232,20 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   badQuote.findings[0].evidence[0].quote = "A quotation not in the policy.";
   installMistral({ completion: badQuote });
   response = await handler(request({ policy: POLICY }));
-  assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /could not be verified in the policy/);
+  const partialResult = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(partialResult.findings.some(({ category }) => category === "pii_collection"), false);
+  assert.ok(partialResult.unknowns.some(({ category }) => category === "pii_collection"));
+  assert.equal(partialResult.ai_training.answer, "no");
+
+  const badAiQuote = validAnalysis();
+  badAiQuote.ai_training.quote = "A quotation not in the policy.";
+  installMistral({ completion: badAiQuote });
+  response = await handler(request({ policy: POLICY }));
+  const safeAiResult = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(safeAiResult.ai_training.answer, "unclear");
+  assert.equal(safeAiResult.findings.some(({ category }) => category === "ai_training"), false);
 
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));

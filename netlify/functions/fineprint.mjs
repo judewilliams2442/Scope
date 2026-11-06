@@ -236,16 +236,12 @@ function validateQuotes(values, policy, label) {
   if (!Array.isArray(values)) {
     throw new HttpError(502, `Mistral returned invalid ${label}. Please try again.`);
   }
-  return values.map((item) => {
-    const quote = requireString(item?.quote, "supporting quotation", 1_500);
-    const sourceQuote = findPolicyQuote(quote, policy);
-    if (!sourceQuote) {
-      throw new HttpError(
-        502,
-        "Mistral returned a quotation that could not be verified in the policy. No unsupported analysis was returned. Please try again."
-      );
+  return values.flatMap((item) => {
+    if (!isRecord(item) || typeof item.quote !== "string" || item.quote.length > 1_500) {
+      return [];
     }
-    return { quote: sourceQuote };
+    const sourceQuote = findPolicyQuote(item.quote, policy);
+    return sourceQuote ? [{ quote: sourceQuote }] : [];
   });
 }
 
@@ -275,14 +271,11 @@ function validateAnalysis(value, policy) {
 
   const deal = requireString(value.deal, "plain-language summary", 1_500);
   const dealEvidence = validateQuotes(value.deal_evidence, policy, "summary quotations");
-  if (!dealEvidence.length) {
-    throw new HttpError(502, "Mistral did not provide a supporting quotation for its summary. Please try again.");
-  }
   if (!Array.isArray(value.findings) || value.findings.length > 80) {
     throw new HttpError(502, "Mistral returned invalid findings. Please try again.");
   }
 
-  const findings = value.findings.map((item) => {
+  const findings = value.findings.flatMap((item) => {
     if (
       !isRecord(item) ||
       !CATEGORIES.includes(item.category) ||
@@ -296,16 +289,16 @@ function validateAnalysis(value, policy) {
       ["explicitly_stated", "reasonable_interpretation"].includes(item.status) &&
       !evidence.length
     ) {
-      throw new HttpError(502, "Mistral returned an unsupported finding without evidence. Please try again.");
+      return [];
     }
-    return {
+    return [{
       category: item.category,
       title: requireString(item.title, "finding title", 200),
       explanation: requireString(item.explanation, "finding explanation", 1_000),
       status: item.status,
       severity: item.severity,
       evidence,
-    };
+    }];
   });
 
   if (value.unknowns.length > CATEGORIES.length) {
@@ -332,26 +325,26 @@ function validateAnalysis(value, policy) {
   const aiQuote = ai.quote.trim()
     ? findPolicyQuote(ai.quote, policy)
     : "";
-  if (
-    (ai.answer === "yes" || ai.answer === "no") &&
-    !aiQuote
-  ) {
-    throw new HttpError(502, "Mistral returned an unsupported AI-training claim. Please try again.");
-  }
-  if (ai.quote.trim() && !aiQuote) {
-    throw new HttpError(
-      502,
-      "Mistral returned a quotation that could not be verified in the policy. No unsupported analysis was returned. Please try again."
-    );
-  }
 
-  const findingCategories = new Set(findings.map(({ category }) => category));
+  const verifiedAiFinding = findings.find(({ category }) => category === "ai_training");
+  const verifiedAiQuote = aiQuote && verifiedAiFinding?.evidence.some(
+    ({ quote }) => quote === aiQuote
+  )
+    ? aiQuote
+    : "";
+  const aiAnswer = verifiedAiQuote && (ai.answer === "yes" || ai.answer === "no")
+    ? ai.answer
+    : "unclear";
+  if (aiAnswer === "unclear" && verifiedAiFinding) {
+    findings.splice(findings.indexOf(verifiedAiFinding), 1);
+  }
   const distinctUnknowns = unknowns.filter((item, index) =>
-    !findingCategories.has(item.category) &&
+    !findings.some(({ category }) => category === item.category) &&
     unknowns.findIndex(({ category }) => category === item.category) === index
   );
+  const remainingFindingCategories = new Set(findings.map(({ category }) => category));
   const covered = new Set([
-    ...findingCategories,
+    ...remainingFindingCategories,
     ...distinctUnknowns.map(({ category }) => category),
   ]);
   for (const category of CATEGORIES) {
@@ -363,19 +356,11 @@ function validateAnalysis(value, policy) {
     }
   }
 
-  const aiTrainingFinding = findings.find(({ category }) => category === "ai_training");
-  if (
-    ai.answer !== "unclear" &&
-    (!aiTrainingFinding || !aiTrainingFinding.evidence.some(({ quote }) => quote === aiQuote))
-  ) {
-    throw new HttpError(502, "Mistral returned an AI-training conclusion without matching finding evidence.");
-  }
-
   return {
     isPrivacyPolicy: true,
-    deal,
+    deal: dealEvidence.length ? deal : "",
     deal_evidence: dealEvidence,
-    ai_training: { answer: ai.answer, quote: aiQuote },
+    ai_training: { answer: aiAnswer, quote: verifiedAiQuote },
     findings,
     unknowns: distinctUnknowns,
     they_take: findings
