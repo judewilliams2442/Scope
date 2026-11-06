@@ -12,6 +12,14 @@ const CATEGORIES = [
   "targeted_advertising",
   "retention_deletion",
 ];
+const CATEGORY_LABELS = {
+  location_tracking: "location tracking",
+  ai_training: "AI data training",
+  pii_collection: "personal information collection",
+  third_party_sharing: "third-party sharing",
+  targeted_advertising: "targeted advertising",
+  retention_deletion: "retention and deletion",
+};
 const STATUSES = [
   "explicitly_stated",
   "reasonable_interpretation",
@@ -399,11 +407,13 @@ function validateAnalysis(value, policy, requestedCategories) {
     ...findings.map(({ category }) => category),
     ...distinctUnknowns.map(({ category }) => category),
   ]);
-  if (requestedCategories.some((category) => !covered.has(category))) {
-    throw new HttpError(
-      502,
-      "Mistral did not return a result for every selected topic. Please try again."
-    );
+  for (const category of requestedCategories) {
+    if (!covered.has(category)) {
+      distinctUnknowns.push({
+        category,
+        explanation: `No supporting information about ${CATEGORY_LABELS[category]} was found in the policy text.`,
+      });
+    }
   }
 
   return {

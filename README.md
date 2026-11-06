@@ -28,9 +28,11 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
   JSON, and rejects supporting quotes that cannot be matched to the submitted text. Quote
   matching tolerates equivalent Unicode punctuation and whitespace, but returns the exact
   excerpt from the submitted text. It does not store policy text or results.
-- The backend returns one evidence-backed finding or a not-mentioned result for each requested
-  category. The popup validates the response again and displays only quotes found in the
-  extracted page text. These checks do not guarantee that AI explanations are correct.
+- The backend returns one evidence-backed finding or a not-found result for each requested
+  category. If the model skips a category, the backend supplies a not-found result instead of
+  failing the whole analysis. The popup validates the response again and displays only quotes
+  found in the extracted page text. These checks do not guarantee that AI explanations are
+  correct.
 - The complete policy and selected categories are sent in one request; text is not chunked or
   truncated. Policies larger than 100,000 UTF-8 bytes or estimated to exceed the configured
   model's context are rejected with an error.

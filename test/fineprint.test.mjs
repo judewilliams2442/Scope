@@ -330,8 +330,11 @@ test("maps model context errors and rejects unsupported quotations", async () =>
     policy: POLICY,
     categories: ["pii_collection"],
   }));
-  assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /every selected topic/);
+  let result = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.unknowns[0].category, "pii_collection");
+  assert.match(result.unknowns[0].explanation, /No supporting information/);
 
   const badAiQuote = validAnalysis();
   badAiQuote.ai_training.quote = "A quotation not in the policy.";
@@ -340,8 +343,11 @@ test("maps model context errors and rejects unsupported quotations", async () =>
     policy: POLICY,
     categories: ["ai_training"],
   }));
-  assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /every selected topic/);
+  result = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.unknowns[0].category, "ai_training");
+  assert.match(result.unknowns[0].explanation, /No supporting information/);
 
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));
@@ -413,8 +419,11 @@ test("keeps valid findings when individual model fields use unexpected values", 
   assert.ok(result.findings.every(({ category }) => CATEGORIES_FOR_TEST.has(category)));
 });
 
-test("rejects a selected topic when malformed AI data leaves it unassessed", async () => {
+test("fills a skipped selected topic with a not-found result", async () => {
   const irregular = validAnalysis();
+  irregular.findings = irregular.findings.filter(
+    ({ category }) => category !== "ai_training"
+  );
   irregular.ai_training = null;
   installMistral({ completion: irregular });
 
@@ -424,8 +433,12 @@ test("rejects a selected topic when malformed AI data leaves it unassessed", asy
   }));
   const result = await response.json();
 
-  assert.equal(response.status, 502);
-  assert.match(result.error, /every selected topic/);
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.unknowns, [{
+    category: "ai_training",
+    explanation: "No supporting information about AI data training was found in the policy text.",
+  }]);
 });
 
 test("maps network failures to a safe error response", async () => {
