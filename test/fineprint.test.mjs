@@ -238,7 +238,17 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));
   assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /malformed JSON/);
+  assert.match((await response.json()).error, /could not be parsed as JSON/);
+});
+
+test("parses a valid analysis wrapped in a JSON markdown fence", async () => {
+  installMistral({
+    completionContent: `\`\`\`json\n${JSON.stringify(validAnalysis())}\n\`\`\``,
+  });
+  const response = await handler(request({ policy: POLICY }));
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).isPrivacyPolicy, true);
 });
 
 test("reports a model completion cut off by its output token limit", async () => {
