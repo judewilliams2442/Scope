@@ -24,15 +24,16 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
   the `/api/fineprint` function on your own configured Netlify site. It never sends policy text
   to the old harness service, never calls Mistral directly, and never contains the Mistral API key.
 - `netlify/functions/fineprint.mjs` validates the request, checks the configured model context,
-  calls Mistral's chat-completions API, validates its JSON, and rejects supporting quotes that
-  cannot be matched to the submitted text. Quote matching tolerates equivalent Unicode
-  punctuation and whitespace, but returns the exact excerpt from the submitted text. It does not
-  store policy text or results.
-- The backend returns structured findings and the legacy response fields. The popup validates
-  the response again, filters disabled topics locally, and displays only quotes found in the
+  sends one request to Mistral with the policy and only the selected categories, validates its
+  JSON, and rejects supporting quotes that cannot be matched to the submitted text. Quote
+  matching tolerates equivalent Unicode punctuation and whitespace, but returns the exact
+  excerpt from the submitted text. It does not store policy text or results.
+- The backend returns one evidence-backed finding or a not-mentioned result for each requested
+  category. The popup validates the response again and displays only quotes found in the
   extracted page text. These checks do not guarantee that AI explanations are correct.
-- Policies are sent whole, not chunked or truncated. Requests larger than 100,000 UTF-8 bytes or
-  estimated to exceed the configured model's context are rejected with an error.
+- The complete policy and selected categories are sent in one request; text is not chunked or
+  truncated. Policies larger than 100,000 UTF-8 bytes or estimated to exceed the configured
+  model's context are rejected with an error.
 
 ### Summary preferences
 
@@ -42,8 +43,8 @@ retention/deletion. All six are on for new users. Choices are stored as booleans
 `chrome.storage.local`; missing fields default to on while existing fields are preserved. The
 popup also migrates the earlier saved priority list.
 
-The backend analyzes all six topics. Preferences are applied locally before findings are shown.
-If every category is off, Scope opens Settings and does not send the policy.
+The backend analyzes only enabled topics. The enabled category list is sent with the policy; if
+every category is off, Scope opens Settings and does not send the policy.
 
 ### Backend setup and deployment
 

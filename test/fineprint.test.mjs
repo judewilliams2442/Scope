@@ -26,6 +26,7 @@ const POLICY = [
 const SAVED_ENV = {};
 let savedFetch;
 let lastChatRequest;
+let chatRequests;
 
 function validAnalysis() {
   return {
@@ -84,13 +85,17 @@ function validAnalysis() {
 }
 
 function request(body, { method = "POST", origin = EXTENSION_ORIGIN } = {}) {
+  const payload = { ...body };
+  if (!Object.hasOwn(payload, "categories")) {
+    payload.categories = [...CATEGORIES_FOR_TEST];
+  }
   return new Request("https://scope.test/api/fineprint", {
     method,
     headers: {
       ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       ...(origin ? { Origin: origin } : {}),
     },
-    ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
+    ...(method === "POST" ? { body: JSON.stringify(payload) } : {}),
   });
 }
 
@@ -111,18 +116,21 @@ function installMistral({
       );
     }
     assert.equal(url, "https://api.mistral.ai/v1/chat/completions");
+    assert.equal(options.headers.Authorization, "Bearer test-key-not-a-secret");
     lastChatRequest = JSON.parse(options.body);
+    chatRequests.push(lastChatRequest);
     if (chatStatus !== 200) {
       return Response.json(
         { error: { message: chatStatus === 400 ? "maximum context length exceeded" : "private upstream detail" } },
         { status: chatStatus }
       );
     }
+    const content = completionContent ?? JSON.stringify(completion ?? validAnalysis());
     return Response.json({
       choices: [{
         finish_reason: finishReason,
         message: {
-          content: completionContent ?? JSON.stringify(completion ?? validAnalysis()),
+          content,
         },
       }],
       usage: { prompt_tokens: 100, completion_tokens: 200 },
@@ -140,6 +148,7 @@ beforeEach(() => {
   process.env.SCOPE_ALLOWED_ORIGINS = EXTENSION_ORIGIN;
   savedFetch = globalThis.fetch;
   lastChatRequest = undefined;
+  chatRequests = [];
   installMistral();
 });
 
@@ -160,22 +169,27 @@ test("analyzes the complete policy and returns compatible, quoted JSON", async (
   assert.equal(response.headers.get("access-control-allow-origin"), EXTENSION_ORIGIN);
   assert.equal(lastChatRequest.model, "ministral-3b-latest");
   assert.equal(lastChatRequest.max_tokens, 4096);
+  assert.equal(chatRequests.length, 1);
+  assert.match(
+    lastChatRequest.messages[1].content,
+    /Requested categories: .*location_tracking.*ai_training/
+  );
   assert.ok(lastChatRequest.messages[1].content.endsWith(POLICY));
-  assert.equal(result.deal, validAnalysis().deal);
+  assert.equal(lastChatRequest.messages[0].content.includes("one result"), true);
   assert.equal(result.ai_training.answer, "no");
   assert.equal(result.they_take.length, 1);
   assert.equal(result.who_gets_it.length, 1);
   assert.equal(result.red_flags.length, 1);
   assert.equal(result.findings.length, 4);
-  assert.equal(result.deal_evidence[0].quote, "We collect account\ninformation.");
-  assert.equal(result.findings[0].evidence[0].quote, "We collect account\ninformation.");
+  assert.equal(
+    result.findings.find(({ category }) => category === "pii_collection")
+      .evidence[0].quote,
+    "We collect account\ninformation."
+  );
   for (const finding of result.findings) {
     for (const evidence of finding.evidence) {
       assert.ok(POLICY.includes(evidence.quote));
     }
-  }
-  for (const evidence of result.deal_evidence) {
-    assert.ok(POLICY.includes(evidence.quote));
   }
 });
 
@@ -183,8 +197,6 @@ test("matches equivalent Unicode punctuation and returns the exact source quote"
   const policy = "We’re improving our services — for example, “searches.”";
   const modelQuote = "We're improving our services - for example, \"searches.\"";
   const analysis = validAnalysis();
-  analysis.deal = "The policy describes using searches to improve services.";
-  analysis.deal_evidence = [{ quote: modelQuote }];
   analysis.findings = [{
     category: "pii_collection",
     title: "Search activity",
@@ -195,12 +207,63 @@ test("matches equivalent Unicode punctuation and returns the exact source quote"
   }];
   installMistral({ completion: analysis });
 
-  const response = await handler(request({ policy }));
+  const response = await handler(request({
+    policy,
+    categories: ["pii_collection"],
+  }));
   const result = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(result.deal_evidence[0].quote, policy);
   assert.equal(result.findings[0].evidence[0].quote, policy);
+});
+
+test("sends only selected preferences and limits the response to those categories", async () => {
+  const analysis = validAnalysis();
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({
+    policy: POLICY,
+    categories: ["targeted_advertising"],
+  }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(chatRequests.length, 1);
+  assert.match(lastChatRequest.messages[1].content, /Requested categories: targeted_advertising/);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.unknowns.map(({ category }) => category), ["targeted_advertising"]);
+});
+
+test("supports older clients that do not send selected categories", async () => {
+  const legacyRequest = new Request("https://scope.test/api/fineprint", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: EXTENSION_ORIGIN,
+    },
+    body: JSON.stringify({ policy: POLICY }),
+  });
+  const response = await handler(legacyRequest);
+
+  assert.equal(response.status, 200);
+  assert.equal(chatRequests.length, 1);
+  assert.match(
+    lastChatRequest.messages[1].content,
+    /Requested categories: location_tracking, ai_training, pii_collection/
+  );
+});
+
+test("reports a non-policy page with one model request", async () => {
+  const analysis = validAnalysis();
+  analysis.isPrivacyPolicy = false;
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({ policy: "A page about cooking recipes." }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.isPrivacyPolicy, false);
+  assert.equal(chatRequests.length, 1);
 });
 
 test("rejects oversized policies without truncating or calling Mistral", async () => {
@@ -263,21 +326,22 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   const badQuote = validAnalysis();
   badQuote.findings[0].evidence[0].quote = "A quotation not in the policy.";
   installMistral({ completion: badQuote });
-  response = await handler(request({ policy: POLICY }));
-  const partialResult = await response.json();
-  assert.equal(response.status, 200);
-  assert.equal(partialResult.findings.some(({ category }) => category === "pii_collection"), false);
-  assert.ok(partialResult.unknowns.some(({ category }) => category === "pii_collection"));
-  assert.equal(partialResult.ai_training.answer, "no");
+  response = await handler(request({
+    policy: POLICY,
+    categories: ["pii_collection"],
+  }));
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /every selected topic/);
 
   const badAiQuote = validAnalysis();
   badAiQuote.ai_training.quote = "A quotation not in the policy.";
   installMistral({ completion: badAiQuote });
-  response = await handler(request({ policy: POLICY }));
-  const safeAiResult = await response.json();
-  assert.equal(response.status, 200);
-  assert.equal(safeAiResult.ai_training.answer, "unclear");
-  assert.equal(safeAiResult.findings.some(({ category }) => category === "ai_training"), false);
+  response = await handler(request({
+    policy: POLICY,
+    categories: ["ai_training"],
+  }));
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /every selected topic/);
 
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));
@@ -297,8 +361,6 @@ test("parses a valid analysis wrapped in a JSON markdown fence", async () => {
 
 test("parses an analysis with raw line breaks and trailing commas in JSON strings", async () => {
   const analysis = validAnalysis();
-  analysis.deal = "The policy says:\nWe collect account information.";
-  analysis.deal_evidence = [{ quote: "We collect account information." }];
   const malformedFormatting = JSON.stringify(analysis)
     .replaceAll("\\n", "\n")
     .replaceAll(',"', ',\n"')
@@ -311,7 +373,7 @@ test("parses an analysis with raw line breaks and trailing commas in JSON string
 
   assert.equal(response.status, 200);
   assert.equal(result.isPrivacyPolicy, true);
-  assert.equal(result.deal, analysis.deal);
+  assert.equal(result.findings.length, analysis.findings.length);
 });
 
 test("reports a model completion cut off by its output token limit", async () => {
@@ -337,30 +399,33 @@ test("keeps valid findings when individual model fields use unexpected values", 
   irregular.ai_training = { answer: "not stated", quote: "" };
   installMistral({ completion: irregular });
 
-  const response = await handler(request({ policy: POLICY }));
+  const response = await handler(request({
+    policy: POLICY,
+    categories: ["pii_collection", "location_tracking"],
+  }));
   const result = await response.json();
 
   assert.equal(response.status, 200);
   const personalFinding = result.findings.find(({ category }) => category === "pii_collection");
   assert.equal(personalFinding.status, "explicitly_stated");
   assert.equal(personalFinding.severity, "informational");
-  assert.equal(result.ai_training.answer, "unclear");
   assert.ok(result.unknowns.some(({ category }) => category === "location_tracking"));
   assert.ok(result.findings.every(({ category }) => CATEGORIES_FOR_TEST.has(category)));
 });
 
-test("omits a malformed AI-training object without failing the analysis", async () => {
+test("rejects a selected topic when malformed AI data leaves it unassessed", async () => {
   const irregular = validAnalysis();
   irregular.ai_training = null;
   installMistral({ completion: irregular });
 
-  const response = await handler(request({ policy: POLICY }));
+  const response = await handler(request({
+    policy: POLICY,
+    categories: ["ai_training"],
+  }));
   const result = await response.json();
 
-  assert.equal(response.status, 200);
-  assert.deepEqual(result.ai_training, { answer: "unclear", quote: "" });
-  assert.equal(result.findings.some(({ category }) => category === "ai_training"), false);
-  assert.ok(result.unknowns.some(({ category }) => category === "ai_training"));
+  assert.equal(response.status, 502);
+  assert.match(result.error, /every selected topic/);
 });
 
 test("maps network failures to a safe error response", async () => {
@@ -377,6 +442,8 @@ test("maps network failures to a safe error response", async () => {
 
 test("validates request shape, methods, and allowed origins", async () => {
   let response = await handler(request({ policy: " \n " }));
+  assert.equal(response.status, 400);
+  response = await handler(request({ policy: POLICY, categories: [] }));
   assert.equal(response.status, 400);
 
   response = await handler(request({}, { method: "GET" }));

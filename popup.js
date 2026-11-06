@@ -163,7 +163,10 @@ async function analyzePolicy(text, preferences, controller) {
     response = await fetch(API_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ policy: text }),
+      body: JSON.stringify({
+        policy: text,
+        categories: settings.enabled(preferences).map(({ category }) => category),
+      }),
       credentials: "omit",
       cache: "no-store",
       signal: controller.signal,
