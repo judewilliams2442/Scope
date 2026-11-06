@@ -7,6 +7,14 @@ import {
 import { handler } from "../netlify/functions/fineprint.mjs";
 
 const EXTENSION_ORIGIN = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+const CATEGORIES_FOR_TEST = new Set([
+  "location_tracking",
+  "ai_training",
+  "pii_collection",
+  "third_party_sharing",
+  "targeted_advertising",
+  "retention_deletion",
+]);
 const POLICY = [
   "We collect account",
   "information.",
@@ -289,6 +297,46 @@ test("reports a model completion cut off by its output token limit", async () =>
 
   assert.equal(response.status, 502);
   assert.match(result.error, /response limit was reached/);
+});
+
+test("keeps valid findings when individual model fields use unexpected values", async () => {
+  const irregular = validAnalysis();
+  irregular.findings[0].category = "personal information";
+  irregular.findings[0].status = "explicitly stated";
+  irregular.findings[0].severity = "urgent";
+  irregular.findings[1].status = "not sure";
+  irregular.findings[2].category = "made_up_category";
+  irregular.unknowns.push({
+    category: "location",
+    explanation: "The text does not say whether precise location is collected.",
+  });
+  irregular.ai_training = { answer: "not stated", quote: "" };
+  installMistral({ completion: irregular });
+
+  const response = await handler(request({ policy: POLICY }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  const personalFinding = result.findings.find(({ category }) => category === "pii_collection");
+  assert.equal(personalFinding.status, "explicitly_stated");
+  assert.equal(personalFinding.severity, "informational");
+  assert.equal(result.ai_training.answer, "unclear");
+  assert.ok(result.unknowns.some(({ category }) => category === "location_tracking"));
+  assert.ok(result.findings.every(({ category }) => CATEGORIES_FOR_TEST.has(category)));
+});
+
+test("omits a malformed AI-training object without failing the analysis", async () => {
+  const irregular = validAnalysis();
+  irregular.ai_training = null;
+  installMistral({ completion: irregular });
+
+  const response = await handler(request({ policy: POLICY }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.ai_training, { answer: "unclear", quote: "" });
+  assert.equal(result.findings.some(({ category }) => category === "ai_training"), false);
+  assert.ok(result.unknowns.some(({ category }) => category === "ai_training"));
 });
 
 test("maps network failures to a safe error response", async () => {
