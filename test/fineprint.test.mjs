@@ -250,7 +250,7 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   installMistral({ completionContent: "{not valid json" });
   response = await handler(request({ policy: POLICY }));
   assert.equal(response.status, 502);
-  assert.match((await response.json()).error, /could not be parsed as JSON/);
+  assert.match((await response.json()).error, /was not valid JSON/);
 });
 
 test("parses a valid analysis wrapped in a JSON markdown fence", async () => {
@@ -261,6 +261,25 @@ test("parses a valid analysis wrapped in a JSON markdown fence", async () => {
 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).isPrivacyPolicy, true);
+});
+
+test("parses an analysis with raw line breaks and trailing commas in JSON strings", async () => {
+  const analysis = validAnalysis();
+  analysis.deal = "The policy says:\nWe collect account information.";
+  analysis.deal_evidence = [{ quote: "We collect account information." }];
+  const malformedFormatting = JSON.stringify(analysis)
+    .replaceAll("\\n", "\n")
+    .replaceAll(',"', ',\n"')
+    .replace(/,(\s*[}\]])/g, "$1");
+  installMistral({
+    completionContent: `Here is the result:\n${malformedFormatting}\nDone.`,
+  });
+  const response = await handler(request({ policy: POLICY }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.isPrivacyPolicy, true);
+  assert.equal(result.deal, analysis.deal);
 });
 
 test("reports a model completion cut off by its output token limit", async () => {

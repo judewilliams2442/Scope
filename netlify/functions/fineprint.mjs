@@ -389,22 +389,91 @@ function parseModelJson(content) {
   const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   if (fenced) candidates.push(fenced[1]);
 
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start >= 0 && end > start) candidates.push(text.slice(start, end + 1));
+  for (let start = 0; start < text.length; start += 1) {
+    if (text[start] !== "{") continue;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index += 1) {
+      const character = text[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') inString = false;
+        continue;
+      }
+      if (character === '"') inString = true;
+      else if (character === "{") depth += 1;
+      else if (character === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          candidates.push(text.slice(start, index + 1));
+          break;
+        }
+      }
+    }
+  }
 
   for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate);
-      if (isRecord(parsed)) return parsed;
-    } catch {
-      continue;
+    for (const input of [candidate, repairCommonJsonFormatting(candidate)]) {
+      try {
+        const parsed = JSON.parse(input);
+        if (isRecord(parsed)) return parsed;
+      } catch {
+        continue;
+      }
     }
   }
   throw new HttpError(
     502,
-    "Mistral's response could not be parsed as JSON, so no analysis was returned. If this keeps happening, verify MISTRAL_MODEL supports JSON mode and redeploy the backend."
+    "Mistral's response was not valid JSON, so the analysis could not be safely checked. No results were shown. Please try again; if it continues, check the deployed model configuration."
   );
+}
+
+function repairCommonJsonFormatting(text) {
+  let repaired = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        repaired += character;
+      } else if (character === "\\") {
+        escaped = true;
+        repaired += character;
+      } else if (character === '"') {
+        inString = false;
+        repaired += character;
+      } else if (character === "\n") {
+        repaired += "\\n";
+      } else if (character === "\r") {
+        repaired += "\\r";
+      } else if (character === "\t") {
+        repaired += "\\t";
+      } else if (character.charCodeAt(0) < 0x20) {
+        repaired += `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
+      } else {
+        repaired += character;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      repaired += character;
+    } else if (character === ",") {
+      let next = index + 1;
+      while (next < text.length && /\s/.test(text[next])) next += 1;
+      if (text[next] !== "}" && text[next] !== "]") repaired += character;
+    } else {
+      repaired += character;
+    }
+  }
+
+  return repaired;
 }
 
 export async function handler(request) {
