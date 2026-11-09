@@ -19,7 +19,8 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
 - `settings.js` manages the summary-preference controls and saved choices. `popup.html` loads it
   before `popup.js`, which uses the `ScopeSettings` API when preparing and filtering analysis.
 - The popup's **Settings** button opens a separate preferences view, with a **Back** button to
-  return to the main page. Analysis results stay hidden until the user presses **Analyze this page**.
+  return to the main page. Analysis results stay hidden until the user presses **Analyze this page**,
+  then remain available when the popup is reopened for the same page.
 - `popup.js` reads the visible page text only after the user presses Analyze, then sends it to
   the `/api/fineprint` function on your own configured Netlify site. It never sends policy text
   to the old harness service, never calls Mistral directly, and never contains the Mistral API key.
@@ -28,11 +29,15 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
   JSON, and rejects supporting quotes that cannot be matched to the submitted text. Quote
   matching tolerates equivalent Unicode punctuation and whitespace, but returns the exact
   excerpt from the submitted text. It does not store policy text or results.
+- The extension saves the analysis and source text in `chrome.storage.local` so closing the popup
+  does not discard the result. A service worker clears that per-tab cache on navigation or reload;
+  results are also checked against the current document before being restored.
 - The backend returns one evidence-backed finding or a not-found result for each requested
-  category. If the model skips a category, the backend supplies a not-found result instead of
-  failing the whole analysis. The popup validates the response again and displays only quotes
-  found in the extracted page text. These checks do not guarantee that AI explanations are
-  correct.
+  category. If the model skips a category, the backend checks the policy for category terms and
+  supplies a finding with an exact excerpt when it finds one; only topics with no supporting
+  terms receive a not-found result. The popup validates the response again and displays only
+  quotes found in the extracted page text. These checks do not guarantee that AI explanations
+  are correct.
 - The complete policy and selected categories are sent in one request; text is not chunked or
   truncated. Policies larger than 100,000 UTF-8 bytes or estimated to exceed the configured
   model's context are rejected with an error.
@@ -115,5 +120,7 @@ not make paid API requests. Then verify manually:
 4. Cancel during an analysis request and confirm the request stops.
 5. Test a long policy. Confirm Scope sends it whole if it fits the byte and estimated context
    limits, and shows an actionable error otherwise.
-6. Confirm evidence quotes match the source text and unaddressed enabled categories are not
-   described as absent.
+6. Confirm evidence quotes match the source text and explicit terms such as PII, location, and
+   tracking are not described as absent.
+7. Close and reopen the popup and confirm the summary remains; reload the page and confirm the
+   summary is cleared.

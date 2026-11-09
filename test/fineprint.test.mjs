@@ -217,6 +217,78 @@ test("matches equivalent Unicode punctuation and returns the exact source quote"
   assert.equal(result.findings[0].evidence[0].quote, policy);
 });
 
+test("turns explicit category terms into evidence-backed findings when the model misses them", async () => {
+  const policy = "We collect PII and location data. We use tracking technologies.";
+  const analysis = validAnalysis();
+  analysis.findings = [];
+  analysis.unknowns = [
+    { category: "location_tracking", explanation: "No location information was found." },
+    { category: "pii_collection", explanation: "No personal information was found." },
+  ];
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({
+    policy,
+    categories: ["location_tracking", "pii_collection"],
+  }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.findings.map(({ category }) => category), [
+    "location_tracking",
+    "pii_collection",
+  ]);
+  assert.ok(result.findings.every(({ evidence }) =>
+    evidence.length === 1 && policy.includes(evidence[0].quote)
+  ));
+  assert.deepEqual(result.unknowns, []);
+});
+
+test("recognizes tracking language without a location keyword", async () => {
+  const policy = "We use tracking technologies across our services.";
+  const analysis = validAnalysis();
+  analysis.findings = [];
+  analysis.unknowns = [{
+    category: "location_tracking",
+    explanation: "No location information was found.",
+  }];
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({
+    policy,
+    categories: ["location_tracking"],
+  }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.findings[0].category, "location_tracking");
+  assert.equal(result.findings[0].evidence[0].quote, policy);
+  assert.deepEqual(result.unknowns, []);
+});
+
+test("finds category terms near the end of the complete policy text", async () => {
+  const policy = `${"Routine policy language. ".repeat(1_200)}At the end, we collect PII.`;
+  const analysis = validAnalysis();
+  analysis.findings = [];
+  analysis.unknowns = [{
+    category: "pii_collection",
+    explanation: "No personal information was found.",
+  }];
+  installMistral({ completion: analysis });
+
+  const response = await handler(request({
+    policy,
+    categories: ["pii_collection"],
+  }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.ok(lastChatRequest.messages[1].content.endsWith(policy));
+  assert.equal(result.findings[0].category, "pii_collection");
+  assert.equal(result.findings[0].evidence[0].quote, "At the end, we collect PII.");
+  assert.deepEqual(result.unknowns, []);
+});
+
 test("sends only selected preferences and limits the response to those categories", async () => {
   const analysis = validAnalysis();
   installMistral({ completion: analysis });
@@ -327,7 +399,7 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   badQuote.findings[0].evidence[0].quote = "A quotation not in the policy.";
   installMistral({ completion: badQuote });
   response = await handler(request({
-    policy: POLICY,
+    policy: "General policy terms apply.",
     categories: ["pii_collection"],
   }));
   let result = await response.json();
@@ -340,7 +412,7 @@ test("maps model context errors and rejects unsupported quotations", async () =>
   badAiQuote.ai_training.quote = "A quotation not in the policy.";
   installMistral({ completion: badAiQuote });
   response = await handler(request({
-    policy: POLICY,
+    policy: "General policy terms apply.",
     categories: ["ai_training"],
   }));
   result = await response.json();
@@ -419,7 +491,7 @@ test("keeps valid findings when individual model fields use unexpected values", 
   assert.ok(result.findings.every(({ category }) => CATEGORIES_FOR_TEST.has(category)));
 });
 
-test("fills a skipped selected topic with a not-found result", async () => {
+test("uses a matching policy term when the model skips a selected topic", async () => {
   const irregular = validAnalysis();
   irregular.findings = irregular.findings.filter(
     ({ category }) => category !== "ai_training"
@@ -434,11 +506,13 @@ test("fills a skipped selected topic with a not-found result", async () => {
   const result = await response.json();
 
   assert.equal(response.status, 200);
-  assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.unknowns, [{
-    category: "ai_training",
-    explanation: "No supporting information about AI data training was found in the policy text.",
-  }]);
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].category, "ai_training");
+  assert.equal(
+    result.findings[0].evidence[0].quote,
+    "We do not use personal data to train AI models."
+  );
+  assert.deepEqual(result.unknowns, []);
 });
 
 test("maps network failures to a safe error response", async () => {
