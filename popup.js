@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");
 const settings = globalThis.ScopeSettings;
 const API_ENDPOINT = "https://heroic-banoffee-57c451.netlify.app/api/fineprint";
+const ANALYSIS_STORAGE_PREFIX = "scope-analysis-";
 let currentPreferences;
 let analysisController;
 
@@ -27,9 +28,9 @@ const DEMO_ANALYSIS = {
 };
 
 const CATEGORY_LABELS = {
-  location_tracking: "Location tracking",
-  location: "Location tracking",
-  geolocation: "Location tracking",
+  location_tracking: "Location and tracking",
+  location: "Location and tracking",
+  geolocation: "Location and tracking",
   ai_training: "AI data training",
   ai_data_training: "AI data training",
   pii_collection: "Personal information collection",
@@ -48,13 +49,13 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function pageText() {
+async function pageSnapshot() {
   const [tab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
   });
 
-  if (!tab || !tab.id) {
+  if (!tab || typeof tab.id !== "number") {
     throw new Error("No active tab found.");
   }
 
@@ -71,21 +72,80 @@ async function pageText() {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => document.body?.innerText ?? "",
+      func: () => ({
+        text: document.body?.innerText ?? "",
+        url: location.href,
+        documentStart: performance.timeOrigin,
+      }),
     });
-    const text = results?.[0]?.result ?? "";
+    const snapshot = results?.[0]?.result;
 
-    if (typeof text !== "string" || !text.trim()) {
+    if (!isRecord(snapshot) ||
+        typeof snapshot.text !== "string" ||
+        !snapshot.text.trim() ||
+        typeof snapshot.url !== "string" ||
+        typeof snapshot.documentStart !== "number") {
       throw new Error("Nothing was found to analyze!");
     }
 
-    return text;
+    return {
+      tabId: tab.id,
+      url: snapshot.url,
+      documentStart: snapshot.documentStart,
+      text: snapshot.text,
+    };
   } catch (error) {
     if (error instanceof Error && error.message === "Nothing was found to analyze!") {
       throw error;
     }
     throw new Error("Could not read this page. Try reloading the tab and opening its privacy policy.");
   }
+}
+
+function analysisStorageKey(tabId) {
+  return `${ANALYSIS_STORAGE_PREFIX}${tabId}`;
+}
+
+async function restoreAnalysis() {
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (!tab || typeof tab.id !== "number" || tab.status !== "complete" ||
+      tab.url?.startsWith("chrome://") ||
+      tab.url?.startsWith("edge://") ||
+      tab.url?.includes("chromewebstore")) {
+    return;
+  }
+
+  const key = analysisStorageKey(tab.id);
+  const saved = await chrome.storage.local.get(key);
+  const cached = saved[key];
+  if (!isRecord(cached)) return;
+
+  const snapshot = await pageSnapshot();
+  if (cached.url !== snapshot.url ||
+      cached.documentStart !== snapshot.documentStart) {
+    await chrome.storage.local.remove(key);
+    return;
+  }
+  if (typeof cached.sourceText !== "string" || !isRecord(cached.analysis)) {
+    await chrome.storage.local.remove(key);
+    return;
+  }
+
+  render(cached.analysis, cached.sourceText, currentPreferences);
+}
+
+async function saveAnalysis(snapshot, analysis) {
+  await chrome.storage.local.set({
+    [analysisStorageKey(snapshot.tabId)]: {
+      url: snapshot.url,
+      documentStart: snapshot.documentStart,
+      sourceText: snapshot.text,
+      analysis,
+    },
+  });
 }
 
 function validateAnalysis(
@@ -388,7 +448,7 @@ function render(analysis, sourceText, preferences) {
 
   if (analysis.not_terms) {
     show("err", "This page may not be a privacy policy. Open the policy page and try again.");
-    return;
+    return false;
   }
 
   if (!Array.isArray(analysis.findings) &&
@@ -424,7 +484,7 @@ function render(analysis, sourceText, preferences) {
   }
   if (!summaryItems.length) {
     show("err", "Nothing was found to analyze!");
-    return;
+    return false;
   }
   $("summary").replaceChildren(
     ...summaryItems.map((item) => textElement("li", "", item))
@@ -440,6 +500,7 @@ function render(analysis, sourceText, preferences) {
 
   $("out").hidden = false;
   updateSummaryToggle();
+  return true;
 }
 
 function visibleSummarySections() {
@@ -523,6 +584,13 @@ async function initialize() {
   currentPreferences = await settings.initialize((message) =>
     show("settings-error", message)
   );
+  if (!DEMO) {
+    try {
+      await restoreAnalysis();
+    } catch {
+      show("status", "Could not check for a saved summary. Analyze this page to continue.");
+    }
+  }
 
   $("cancel-analysis").addEventListener("click", () => {
     analysisController?.abort();
@@ -551,7 +619,7 @@ async function initialize() {
       }
 
       show("status", "Reading the open page…");
-      const text = await pageText();
+      const snapshot = await pageSnapshot();
       if (analysisController.signal.aborted) {
         show("status", "Analysis canceled.");
         return;
@@ -567,12 +635,18 @@ async function initialize() {
       }
 
       const analysis = await analyzePolicy(
-        text,
+        snapshot.text,
         currentPreferences,
         analysisController
       );
       $("status").hidden = true;
-      render(analysis, text, currentPreferences);
+      if (render(analysis, snapshot.text, currentPreferences)) {
+        try {
+          await saveAnalysis(snapshot, analysis);
+        } catch {
+          show("status", "Analysis is ready, but the summary could not be saved on this device.");
+        }
+      }
     } catch (error) {
       $("status").hidden = true;
       if (analysisController.signal.aborted) {

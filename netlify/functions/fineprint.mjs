@@ -22,7 +22,7 @@ const TERMS_CATEGORIES = [
   "unilateral_changes",
 ];
 const CATEGORY_LABELS = {
-  location_tracking: "location tracking",
+  location_tracking: "location and tracking",
   ai_training: "AI data training",
   pii_collection: "personal information collection",
   third_party_sharing: "third-party sharing",
@@ -57,6 +57,36 @@ const CATEGORY_ALIASES = {
   third_party: "third_party_sharing",
   advertising: "targeted_advertising",
   retention: "retention_deletion",
+};
+const CATEGORY_TERMS = {
+  location_tracking: [
+    /\b(?:location|geolocation|GPS|geographic(?:al)?|coordinates|whereabouts)\b/i,
+    /\bIP address(?:es)?\b/i,
+    /\btrack(?:s|ed|ing)?\b/i,
+  ],
+  ai_training: [
+    /\b(?:AI|artificial intelligence|machine learning|ML)\b.{0,60}\b(?:train(?:s|ed|ing)?|improv(?:e|es|ed|ing)|develop(?:s|ed|ing)?)\b/i,
+    /\b(?:train(?:s|ed|ing)?|improv(?:e|s|ed|ing)|develop(?:s|ed|ing)?)\b.{0,60}\b(?:AI|artificial intelligence|machine learning|ML)\b/i,
+  ],
+  pii_collection: [
+    /\bPII\b/i,
+    /\bpersonally identifiable\b/i,
+    /\bpersonal (?:information|data|details|identifiers)\b/i,
+    /\b(?:sensitive|special category) (?:personal )?(?:information|data)\b/i,
+    /\b(?:account|contact|device|usage|browsing|online activity) (?:information|data|details|identifiers)\b/i,
+    /\b(?:email address|phone number|postal address|IP address|device ID|date of birth)\b/i,
+  ],
+  third_party_sharing: [
+    /\b(?:share|sharing|shared|disclose|disclosing|disclosed|sell|selling|sold)\b/i,
+    /\b(?:third[- ]party|service provider|vendor|partner|recipient)s?\b/i,
+  ],
+  targeted_advertising: [
+    /\b(?:targeted|personalized|interest[- ]based|relevant) advertis(?:e|es|ed|ing|ement)s?\b/i,
+    /\b(?:advertis(?:e|es|ed|ing|ement)s?|ads?)\b/i,
+  ],
+  retention_deletion: [
+    /\b(?:retain|retains|retained|retention|keep|keeps|kept|store|stores|stored|storage|delete|deletes|deleted|deletion|erase|erased)\b/i,
+  ],
 };
 const STATUS_ALIASES = {
   explicit: "explicitly_stated",
@@ -96,6 +126,7 @@ Return exactly one JSON object with no Markdown fences or text before or after i
 Allowed status values: explicitly_stated, reasonable_interpretation, not_specified, cannot_determine.
 Allowed severity values: informational, low, medium, high, critical.
 For each requested category, return no more than one finding. Each finding must have one concise exact quote from the supplied text; never invent or paraphrase quotes. If the policy does not mention that category after searching the whole text, include that category in unknowns instead. Do not make a negative claim beyond what the text supports.
+Search explicitly for literal category terms as well as synonyms, including PII, personal data or information, location, GPS, geolocation, tracking, AI or machine-learning training, sharing, advertising, retention, and deletion. If any relevant term appears, quote the sentence containing it rather than reporting the category as not found.
 For location_tracking, include precise, general, and IP-inferred location. For ai_training, answer yes only if the text supports use of personal data to train, improve, or develop AI models; answer no only if it explicitly rules that out; otherwise answer unclear. A yes/no answer requires the same exact quote in an ai_training finding.
 For pii_collection, include personal, sensitive, account, device, and usage data. For third_party_sharing, identify recipient types and stated purposes. For targeted_advertising, include personalized, relevant, or interest-based ads. For retention_deletion, report retention periods, criteria, deletion choices, and exceptions.
 If the text is not a privacy policy, set isPrivacyPolicy to false, findings and unknowns to empty arrays, and ai_training to {"answer":"unclear","quote":""}.`;
@@ -342,6 +373,43 @@ function validateQuotes(values, policy, label) {
   });
 }
 
+function findCategoryEvidence(category, policy) {
+  let firstMatch = null;
+  for (const pattern of CATEGORY_TERMS[category] ?? []) {
+    const matcher = new RegExp(pattern.source, `${pattern.flags}g`);
+    let match;
+    while ((match = matcher.exec(policy)) !== null) {
+      if (!firstMatch || match.index < firstMatch.index) {
+        firstMatch = {
+          index: match.index,
+          term: match[0],
+        };
+      }
+    }
+  }
+  if (!firstMatch) return null;
+
+  let start = firstMatch.index;
+  while (start > 0 && !/[.!?;\r\n]/.test(policy[start - 1])) start -= 1;
+  let end = firstMatch.index + firstMatch.term.length;
+  while (end < policy.length && !/[.!?;\r\n]/.test(policy[end])) end += 1;
+  if (end < policy.length && /[.!?;]/.test(policy[end])) end += 1;
+
+  if (end - start > 1_500) {
+    start = Math.max(start, firstMatch.index - 500);
+    end = Math.min(end, start + 1_500);
+    if (end < firstMatch.index + firstMatch.term.length) {
+      start = Math.max(0, firstMatch.index + firstMatch.term.length - 1_500);
+      end = firstMatch.index + firstMatch.term.length;
+    }
+  }
+
+  return {
+    term: firstMatch.term,
+    quote: policy.slice(start, end).trim(),
+  };
+}
+
 function validateAnalysis(value, policy, requestedCategories, documentType) {
   const isTerms = documentType === "terms";
   const typeKey = isTerms ? "isTermsOfService" : "isPrivacyPolicy";
@@ -474,6 +542,25 @@ function validateAnalysis(value, policy, requestedCategories, documentType) {
     : "unclear";
   if (aiAnswer === "unclear" && verifiedAiFinding) {
     findings.splice(findings.indexOf(verifiedAiFinding), 1);
+  }
+  const categoryEvidence = new Map(
+    requestedCategories.map((category) => [
+      category,
+      findCategoryEvidence(category, policy),
+    ])
+  );
+  for (const category of requestedCategories) {
+    if (findings.some((finding) => finding.category === category)) continue;
+    const evidence = categoryEvidence.get(category);
+    if (!evidence) continue;
+    findings.push({
+      category,
+      title: `${CATEGORY_LABELS[category]} reference`,
+      explanation: `The policy mentions “${evidence.term}”. Review the quoted passage for its scope and conditions.`,
+      status: "explicitly_stated",
+      severity: "informational",
+      evidence: [{ quote: evidence.quote }],
+    });
   }
   const distinctUnknowns = unknowns.filter((item, index) =>
     !findings.some(({ category }) => category === item.category) &&

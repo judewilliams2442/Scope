@@ -5,6 +5,9 @@
   "description": "Understand what a website's privacy policy and Terms of Service say.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["https://heroic-banoffee-57c451.netlify.app/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Scope - policy and terms analysis"

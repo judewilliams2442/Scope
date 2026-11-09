@@ -4,9 +4,9 @@
     {
       key: "locationTracking",
       category: "location_tracking",
-      label: "Location Tracking",
+      label: "Location and Tracking",
       icon: "📍",
-      description: "Location data, GPS, geolocation, and location-based monitoring.",
+      description: "Location data, GPS, geolocation, and other tracking practices.",
     },
     {
       key: "aiDataTraining",
