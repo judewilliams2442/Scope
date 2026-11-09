@@ -484,12 +484,14 @@ function showNoEnabledPreferences() {
 
 function showView(view) {
   const isSettings = view === "settings";
-  $("home-view").hidden = isSettings;
+  const isTerms = $("terms-mode").getAttribute("aria-pressed") === "true";
+  $("home-view").hidden = isSettings || isTerms;
+  $("terms-view").hidden = isSettings || !isTerms;
   $("settings-view").hidden = !isSettings;
   if (isSettings) {
     $("settings-heading").focus();
   } else {
-    $("settings-open").focus();
+    $(isTerms ? "settings-open-terms" : "settings-open").focus();
   }
 }
 
@@ -510,11 +512,13 @@ async function initialize() {
     });
     updateSummaryToggle();
   });
-  $("settings-open").addEventListener("click", () => {
+  const openSettings = () => {
     $("settings-error").hidden = true;
     $("settings-message").hidden = true;
     showView("settings");
-  });
+  };
+  $("settings-open").addEventListener("click", openSettings);
+  $("settings-open-terms").addEventListener("click", openSettings);
   $("settings-back").addEventListener("click", () => showView("home"));
   currentPreferences = await settings.initialize((message) =>
     show("settings-error", message)

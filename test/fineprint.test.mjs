@@ -15,6 +15,15 @@ const CATEGORIES_FOR_TEST = new Set([
   "targeted_advertising",
   "retention_deletion",
 ]);
+const TERMS_CATEGORIES_FOR_TEST = [
+  "account_termination",
+  "payment_fees",
+  "user_content_license",
+  "dispute_resolution",
+  "liability_warranty",
+  "governing_law",
+  "unilateral_changes",
+];
 const POLICY = [
   "We collect account",
   "information.",
@@ -191,6 +200,41 @@ test("analyzes the complete policy and returns compatible, quoted JSON", async (
       assert.ok(POLICY.includes(evidence.quote));
     }
   }
+});
+
+test("analyzes Terms of Service using terms categories and exact evidence", async () => {
+  const terms = "We may suspend your account at any time for a breach of these terms.";
+  installMistral({
+    completion: {
+      isTermsOfService: true,
+      findings: [{
+        category: "account_termination",
+        title: "Account suspension",
+        explanation: "The service may suspend accounts for a terms breach.",
+        status: "explicitly_stated",
+        severity: "medium",
+        evidence: [{ quote: "We may suspend your account at any time for a breach of these terms." }],
+      }],
+      unknowns: [],
+    },
+  });
+
+  const response = await handler(request({
+    policy: terms,
+    documentType: "terms",
+    categories: TERMS_CATEGORIES_FOR_TEST,
+  }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.isTermsOfService, true);
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].category, "account_termination");
+  assert.equal(result.findings[0].evidence[0].quote, terms);
+  assert.equal(result.unknowns.length, TERMS_CATEGORIES_FOR_TEST.length - 1);
+  assert.match(lastChatRequest.messages[0].content, /Terms of Service analyst/);
+  assert.match(lastChatRequest.messages[1].content, /Requested categories: account_termination/);
+  assert.ok(lastChatRequest.messages[1].content.endsWith(terms));
 });
 
 test("matches equivalent Unicode punctuation and returns the exact source quote", async () => {
@@ -455,6 +499,8 @@ test("maps network failures to a safe error response", async () => {
 
 test("validates request shape, methods, and allowed origins", async () => {
   let response = await handler(request({ policy: " \n " }));
+  assert.equal(response.status, 400);
+  response = await handler(request({ policy: POLICY, documentType: null }));
   assert.equal(response.status, 400);
   response = await handler(request({ policy: POLICY, categories: [] }));
   assert.equal(response.status, 400);

@@ -1,14 +1,14 @@
 # Scope
 *Understand the policy. Decide what works for you.*
-A Chrome extension that analyzes the privacy policy open in your browser and presents the
-available findings in plain language, with supporting policy excerpts where available.
+A Chrome extension that analyzes the privacy policy or Terms of Service open in your browser and
+presents the available findings in plain language, with supporting excerpts where available.
 
 ## Run it (2 minutes)
 
 1. Chrome → `chrome://extensions` → turn on **Developer mode** (top right).
 2. **Load unpacked** → pick this folder.
-3. Use a current Chrome version. Open a site's privacy policy,
-   click the Scope extension, and press **Analyze this page**.
+3. Use a current Chrome version. Open a site's privacy policy or Terms of Service, click the Scope extension, select the matching
+summary type, and press **Analyze this page**.
 
 Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not make an API request.
 
@@ -16,6 +16,9 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
 
 - `popup.js` grabs the open page's visible text **only when you press the button** (`activeTab`);
   it does not inspect pages in the background.
+- `TermsOfService.js` provides the matching Terms of Service analyzer. The popup toggle switches
+  between privacy-policy topics and terms-specific topics; the same backend validates exact
+  supporting excerpts for either document type.
 - `settings.js` manages the summary-preference controls and saved choices. `popup.html` loads it
   before `popup.js`, which uses the `ScopeSettings` API when preparing and filtering analysis.
 - The popup's **Settings** button opens a separate preferences view, with a **Back** button to
@@ -39,9 +42,11 @@ Open `popup.html?demo=1` in a plain tab for a canned UI preview that does not ma
 
 ### Summary preferences
 
-Open **Settings** to independently include or exclude location tracking, AI data
-training, personal information collection, third-party sharing, targeted advertising, and
-retention/deletion. All six are on for new users. Choices are stored as booleans in
+Open **Settings** to independently include or exclude summary topics. Privacy Policy settings
+cover location tracking, AI data training, personal information collection, third-party sharing,
+targeted advertising, and retention/deletion. Terms of Service settings cover account termination,
+payments, user-content licenses, dispute resolution, warranties and liability, governing law, and
+changes to terms. All topics are on for new users. Choices are stored as booleans in
 `chrome.storage.local`; missing fields default to on while existing fields are preserved. The
 popup also migrates the earlier saved priority list.
 

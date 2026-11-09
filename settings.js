@@ -44,8 +44,60 @@
       description: "How long data is kept, deletion policies, and removal requests.",
     },
   ];
+  const TERMS_PREFERENCES = [
+    {
+      key: "termsAccountTermination",
+      category: "account_termination",
+      label: "Account Termination and Suspension",
+      icon: "🚫",
+      description: "When the service or user may suspend or terminate access.",
+    },
+    {
+      key: "termsPaymentFees",
+      category: "payment_fees",
+      label: "Payments, Fees, and Subscriptions",
+      icon: "💵",
+      description: "Charges, renewals, refunds, and cancellation terms.",
+    },
+    {
+      key: "termsUserContentLicense",
+      category: "user_content_license",
+      label: "Your Content and Content License",
+      icon: "📋",
+      description: "Ownership and rights granted for content you submit.",
+    },
+    {
+      key: "termsDisputeResolution",
+      category: "dispute_resolution",
+      label: "Disputes and Arbitration",
+      icon: "🧑‍⚖️",
+      description: "Dispute procedures, arbitration, and class-action waivers.",
+    },
+    {
+      key: "termsLiabilityWarranty",
+      category: "liability_warranty",
+      label: "Warranties and Liability",
+      icon: "📃",
+      description: "Warranty disclaimers, liability limits, and excluded damages.",
+    },
+    {
+      key: "termsGoverningLaw",
+      category: "governing_law",
+      label: "Governing Law and Jurisdiction",
+      icon: "⚖️",
+      description: "Which law, courts, or location govern disputes.",
+    },
+    {
+      key: "termsUnilateralChanges",
+      category: "unilateral_changes",
+      label: "Changes to the Terms",
+      icon: "📝",
+      description: "How the terms may be changed and how users are notified.",
+    },
+  ];
+  const ALL_PREFERENCES = [...PREFERENCES, ...TERMS_PREFERENCES];
   const DEFAULT_PREFERENCES = Object.fromEntries(
-    PREFERENCES.map(({ key }) => [key, true])
+    ALL_PREFERENCES.map(({ key }) => [key, true])
   );
   const KEY_BY_CATEGORY = {
     location_tracking: "locationTracking",
@@ -63,6 +115,13 @@
     advertising: "targetedAdvertising",
     retention_deletion: "retentionDeletion",
     retention: "retentionDeletion",
+    account_termination: "termsAccountTermination",
+    payment_fees: "termsPaymentFees",
+    user_content_license: "termsUserContentLicense",
+    dispute_resolution: "termsDisputeResolution",
+    liability_warranty: "termsLiabilityWarranty",
+    governing_law: "termsGoverningLaw",
+    unilateral_changes: "termsUnilateralChanges",
   };
 
   let currentPreferences = { ...DEFAULT_PREFERENCES };
@@ -77,6 +136,9 @@
     if (Array.isArray(value)) {
       const selected = new Set(value.filter((item) => typeof item === "string"));
       return {
+        ...Object.fromEntries(
+          TERMS_PREFERENCES.map(({ key }) => [key, true])
+        ),
         locationTracking: selected.has("location_tracking"),
         aiDataTraining: selected.has("ai_training"),
         piiCollection: selected.has("sensitive_information") ||
@@ -88,7 +150,7 @@
     }
 
     return Object.fromEntries(
-      PREFERENCES.map(({ key }) => [
+      ALL_PREFERENCES.map(({ key }) => [
         key,
         isRecord(value) && typeof value[key] === "boolean"
           ? value[key]
@@ -103,7 +165,7 @@
       const stored = result[PREFERENCE_KEY];
       const preferences = normalizedPreferences(stored);
       const isCurrentObject = isRecord(stored) &&
-        PREFERENCES.every(({ key }) => typeof stored[key] === "boolean");
+        ALL_PREFERENCES.every(({ key }) => typeof stored[key] === "boolean");
       if (!isCurrentObject) {
         await chrome.storage.local.set({ [PREFERENCE_KEY]: preferences });
       }
@@ -117,7 +179,7 @@
         ? { ...DEFAULT_PREFERENCES }
         : normalizedPreferences(stored);
       if (serialized === null || !isRecord(stored) ||
-          !PREFERENCES.every(({ key }) =>
+          !ALL_PREFERENCES.every(({ key }) =>
             typeof stored[key] === "boolean")) {
         localStorage.setItem(PREFERENCE_KEY, JSON.stringify(preferences));
       }
@@ -148,23 +210,24 @@
     }
   }
 
-  function renderPreferences(preferences) {
-    const container = document.getElementById("preferences");
+  function renderPreferenceGroup(containerId, preferenceGroup, preferences) {
+    const container = document.getElementById(containerId);
     container.replaceChildren(
-      ...PREFERENCES.map(({ key, label, description, icon }) => {
+      ...preferenceGroup.map(({ key, category, label, description, icon }) => {
         const row = document.createElement("label");
         row.className = "preference";
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.name = "preference";
-        checkbox.value = key;
+        checkbox.value = category;
         checkbox.checked = preferences[key];
         checkbox.setAttribute("aria-label", `${label}: include in summary`);
         checkbox.addEventListener("change", async () => {
+          document.getElementById("settings-message").hidden = true;
           const previous = { ...currentPreferences };
           currentPreferences = { ...currentPreferences, [key]: checkbox.checked };
-          container.querySelectorAll('input[name="preference"]').forEach((input) => {
+          document.querySelectorAll('#settings-view input[name="preference"]').forEach((input) => {
             input.disabled = true;
           });
           const write = preferenceWrites.then(() =>
@@ -182,10 +245,11 @@
               ? error.message
               : "Could not save your summary preferences.");
           } finally {
-            container.querySelectorAll('input[name="preference"]').forEach((input) => {
+            document.querySelectorAll('#settings-view input[name="preference"]').forEach((input) => {
               input.disabled = false;
             });
           }
+
         });
 
         const copy = document.createElement("span");
@@ -207,6 +271,11 @@
         return row;
       })
     );
+  }
+
+  function renderPreferences(preferences) {
+    renderPreferenceGroup("preferences", PREFERENCES, preferences);
+    renderPreferenceGroup("terms-preferences", TERMS_PREFERENCES, preferences);
   }
 
   async function initialize(handleError) {
@@ -231,6 +300,10 @@
     return PREFERENCES.filter(({ key }) => !preferences[key]);
   }
 
+  function enabledTerms(preferences) {
+    return TERMS_PREFERENCES.filter(({ key }) => preferences[key]);
+  }
+
   function isCategoryEnabled(category, preferences) {
     const key = typeof category === "string"
       ? KEY_BY_CATEGORY[category]
@@ -247,7 +320,9 @@
     refresh,
     enabled,
     disabled,
+    enabledTerms,
     count: PREFERENCES.length,
+    termsCount: TERMS_PREFERENCES.length,
     isCategoryEnabled,
     filterByPreferences,
   };

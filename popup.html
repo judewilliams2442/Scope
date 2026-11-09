@@ -82,8 +82,28 @@
     border-radius: 6px; background: var(--surface); color: var(--green-dark);
     font-weight: 650;
   }
-  .settings-open { width: 100%; margin-top: 9px; }
+  .settings-open {
+    width: 100%; margin-top: 9px;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .settings-open:hover {
+    border-color: var(--green-dark); background: var(--green-dark); color: white;
+  }
   .back { margin: 0 0 12px; }
+  .back:hover { border-color: var(--green); background: var(--green); color: white; }
+  .mode-switch {
+    display: flex; gap: 6px; margin: 10px 0 12px; padding: 3px;
+    border: 1px solid var(--border); border-radius: 7px; background: var(--surface);
+  }
+  .mode-switch button {
+    flex: 1; min-height: 32px; border: 0; border-radius: 5px;
+    background: transparent; color: var(--muted); font-weight: 650;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .mode-switch button[aria-pressed="true"] { background: var(--green); color: white; }
+  .mode-switch button[aria-pressed="false"]:hover {
+    background: var(--green-dark); color: white;
+  }
   #settings-view { margin-top: 18px; }
   .view-heading { margin: 0; font-size: 15px; }
   .status, .error { margin: 10px 0 0; font-size: 12px; }
@@ -91,6 +111,12 @@
   .error { color: var(--red); }
   .preferences-intro { margin: 8px 0 10px; color: var(--muted); font-size: 11px; }
   .preference-list { display: grid; gap: 1px; padding-bottom: 6px; }
+  .preference-group {
+    margin: 12px 0 0; padding: 10px 11px 6px;
+    border: 1px solid var(--border); border-radius: 7px; background: rgba(251, 246, 233, .72);
+  }
+  .preference-group h3 { margin: 0; font-size: 13px; }
+  .preference-group > p { margin: 3px 0 7px; color: var(--muted); font-size: 10px; }
   .preference {
     display: flex; align-items: flex-start; gap: 9px; padding: 7px 4px;
     border-radius: 5px; cursor: pointer;
@@ -152,11 +178,16 @@
       <img class="brand-mark" aria-hidden="true" src="Scope_Logo.png" alt="Scope">
       <div class="brand-copy">
         <h1>Scope</h1>
-        <span class="context">Privacy Policy Analyzer</span>
+        <span class="context">Privacy Policy and Terms of Service Analyzer</span>
       </div>
     </div>
   </header>
   <section id="home-view">
+    <div class="mode-switch" role="group" aria-label="Choose a summary type">
+      <button id="privacy-mode" type="button" aria-pressed="true">Privacy Policy</button>
+      <button id="terms-mode" type="button" aria-pressed="false">Terms of Service</button>
+    </div>
+    <h2 class="view-heading" id="privacy-heading">Privacy Policy Analyzer</h2>
     <p class="lede">Understand what a policy says about your data before you agree</p>
 
     <button class="go" id="read" type="button"><span aria-hidden="true">🔍</span> Analyze This Page!</button>
@@ -218,11 +249,56 @@
     <p class="foot" id="privacy-note">Page text is sent to your Scope backend and Mistral for analysis. Scope does not store it.</p>
   </section>
 
+  <section id="terms-view" aria-labelledby="terms-heading" hidden>
+    <div class="mode-switch" role="group" aria-label="Choose a summary type">
+      <button id="terms-privacy-mode" type="button" aria-pressed="false">Privacy Policy</button>
+      <button id="terms-current-mode" type="button" aria-pressed="true">Terms of Service</button>
+    </div>
+    <h2 class="view-heading" id="terms-heading">Terms of Service Analyzer</h2>
+    <p class="lede">Understand the terms before you agree</p>
+    <button class="go" id="analyze-terms" type="button"><span aria-hidden="true">🔍</span> Analyze This Page!</button>
+    <button class="cancel" id="cancel-terms-analysis" type="button" hidden>Cancel analysis</button>
+    <p class="status" id="terms-status" role="status" aria-live="polite" hidden></p>
+    <p class="error" id="terms-error" role="alert" aria-live="assertive" hidden></p>
+    <button class="settings-open" id="settings-open-terms" type="button" aria-controls="settings-view">
+      <span aria-hidden="true">⚙️</span> Settings
+    </button>
+    <div id="terms-out" hidden>
+      <div class="result-head">
+        <h2>Terms of Service summary</h2>
+        <span class="result-label" id="terms-result-label">Analyzed by Mistral</span>
+      </div>
+      <button class="collapse-toggle" id="terms-toggle-summaries" type="button" hidden>Collapse All</button>
+      <details class="result-section" open>
+        <summary class="section-label">Key terms</summary>
+        <div id="terms-findings"></div>
+      </details>
+      <details class="result-section" id="terms-unknowns-section" hidden open>
+        <summary class="section-label">Not found in the terms</summary>
+        <div id="terms-unknowns"></div>
+      </details>
+      <details class="result-section" id="terms-confidence-section" hidden open>
+        <summary class="section-label">Confidence note</summary>
+        <p class="confidence" id="terms-confidence"></p>
+      </details>
+    </div>
+    <p class="foot" id="terms-privacy-note">Page text is sent to your Scope backend and Mistral for analysis. Scope does not store it.</p>
+  </section>
+
   <section id="settings-view" aria-labelledby="settings-heading" hidden>
     <h2 class="view-heading" id="settings-heading" tabindex="-1">Summary Preferences</h2>
-    <p class="preferences-intro">Choose which topics may appear in summaries. Disabled topics are excluded.</p>
+    <p class="preferences-intro">Choose which topics may appear in each type of summary. Disabled topics are excluded.</p>
     <p class="status" id="settings-message" role="status" aria-live="polite" hidden></p>
-    <div class="preference-list" id="preferences"></div>
+    <section class="preference-group" aria-labelledby="policy-preferences-heading">
+      <h3 id="policy-preferences-heading">Privacy Policy Summarizer</h3>
+      <p>Choose the privacy topics to include in policy summaries.</p>
+      <div class="preference-list" id="preferences"></div>
+    </section>
+    <section class="preference-group" aria-labelledby="terms-preferences-heading">
+      <h3 id="terms-preferences-heading">Terms of Service Summarizer</h3>
+      <p>Choose the terms topics to include in Terms of Service summaries.</p>
+      <div class="preference-list" id="terms-preferences"></div>
+    </section>
     <p class="preference-status" id="preference-status" aria-live="polite"></p>
     <p class="error" id="settings-error" role="alert" aria-live="assertive" hidden></p>
     <button class="back" id="settings-back" type="button">← Back</button>
@@ -230,5 +306,6 @@
 </main>
 <script src="settings.js"></script>
 <script src="popup.js"></script>
+<script src="TermsOfService.js"></script>
 </body>
 </html>
